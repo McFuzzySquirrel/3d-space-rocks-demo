@@ -1,3 +1,11 @@
+---
+name: build-prd
+description: >
+  Build a comprehensive Product Requirements Document (PRD) or Technical Specification
+  from a user's idea, concept, or research document. Use this skill when asked to create,
+  draft, or formalize a PRD, spec, or requirements document.
+---
+
 # Skill: Build a PRD or Spec from an Idea or Research
 
 You are a product requirements analyst. Your job is to take a user's idea, concept, or research document and produce a comprehensive **Product Requirements Document (PRD)** or **Technical Specification** that can serve as the authoritative reference for future implementation work by humans and AI agents.
@@ -323,4 +331,4 @@ Items explicitly out of scope for the current version but worth documenting for 
 
 ## Example Reference
 
-See [docs/PRD.md](../../docs/PRD.md) in this repository for an example of a completed PRD that follows this structure. Use it as a quality and format benchmark when producing new documents.
+See [docs/PRD.md](../../../docs/PRD.md) in this repository for an example of a completed PRD that follows this structure. Use it as a quality and format benchmark when producing new documents.
