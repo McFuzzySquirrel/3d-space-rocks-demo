@@ -205,10 +205,10 @@ Start Game
 | AR-03 | Barriers use `StandardMaterial` with configurable `diffuseColor`, `emissiveColor`, and `alpha` | Must |
 | AR-04 | Default barrier color is a neutral/warning color (e.g., red-orange, `#FF4500`) | Must |
 | AR-05 | When all 3 waves are cleared, barrier color transitions to green (`#00FF00`) over 1 second | Must |
-| AR-06 | After barriers turn green, an exit zone or gate appears on one wall | Must |
+| AR-06 | After barriers turn green, an exit zone (a highlighted opening) appears on the front wall (+Z direction) of the arena | Must |
 | AR-07 | The player flying through the exit triggers the transition to the next area | Must |
 | AR-08 | Barriers are opaque enough to be clearly visible but allow the player to see the space environment beyond them faintly | Must |
-| AR-09 | Barriers have a subtle pulsing glow effect to make them feel active/energized | Should |
+| AR-09 | Barriers have a subtle pulsing glow effect (2-second cycle, emissive intensity varying ±20%) to make them feel active/energized | Should |
 | AR-10 | Arena dimensions may increase slightly in later areas to accommodate more asteroids | Could |
 
 ### 5.4 Wave System
@@ -407,7 +407,7 @@ The game is considered complete when:
 
 1. **Playable:** The player can control a ship in third-person view, shoot projectiles, and destroy asteroids.
 2. **Waves Work:** Each area has exactly 3 waves with increasing numbers of asteroids.
-3. **Barrier System:** Arena barriers are visible and opaque. They change to green when all 3 waves in an area are completed.
+3. **Barrier System:** Arena barriers are visible and semi-transparent (clearly visible but allowing the space environment to be faintly seen beyond them). They change to green when all 3 waves in an area are completed.
 4. **Area Progression:** After barriers turn green, an exit is available. Flying through it loads the next area with reset barriers and harder waves.
 5. **Offline:** After the first load, the game is fully functional without an internet connection.
 6. **Performance:** The game runs at 60 FPS on target hardware.
