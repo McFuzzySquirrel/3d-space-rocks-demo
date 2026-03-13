@@ -144,7 +144,8 @@ import { FollowCamera } from "@babylonjs/core/Cameras/followCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { Vector3, Color3, Color4 } from "@babylonjs/core/Maths/math";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 
 // ❌ Incorrect — imports entire Babylon.js
 import * as BABYLON from "@babylonjs/core";
