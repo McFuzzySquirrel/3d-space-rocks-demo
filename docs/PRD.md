@@ -12,9 +12,64 @@
 
 ---
 
-## 2. Research Findings
+## 2. Version History
 
-### 2.1 Why Babylon.js
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | 2025-01-01 | — | Initial PRD created with core game concept, technical architecture, and requirements |
+| 1.1 | 2026-03-13 | — | Added best-practice sections: version history, goals/non-goals, personas, security, accessibility, testing strategy, analytics, dependencies/risks, future considerations |
+
+---
+
+## 3. Goals and Non-Goals
+
+### 3.1 Goals
+
+- Deliver a fun, replayable arcade-style 3D asteroids game playable entirely in the browser
+- Support fully offline play after first load via PWA / Service Worker caching
+- Demonstrate Babylon.js capabilities for browser-based 3D game development
+- Provide a clear progression system (waves → areas) with increasing difficulty
+- Maintain 60 FPS performance on mid-range hardware
+
+### 3.2 Non-Goals
+
+- **Multiplayer:** No networked or local multiplayer support in v1
+- **Mobile touch controls:** Touchscreen input is not targeted for v1 (keyboard only)
+- **User accounts or cloud saves:** No server-side persistence; high scores are local only
+- **Level editor or modding support:** Not in scope for the initial release
+- **Monetization:** No ads, in-app purchases, or premium features
+- **Narrative or story mode:** The game is purely arcade-style with no storyline
+
+---
+
+## 4. User Stories / Personas
+
+### 4.1 Personas
+
+| Persona | Description | Key Needs |
+|---------|-------------|-----------|
+| **Casual Gamer (Alex)** | Plays browser games during breaks. Values quick sessions and simple controls. | Fast load time, intuitive controls, satisfying feedback, short play sessions (5–15 min) |
+| **Retro Enthusiast (Sam)** | Loves classic arcade games like Asteroids. Appreciates modern takes on retro concepts. | Faithful asteroid-splitting mechanics, score chasing, progressive difficulty |
+| **Offline User (Jordan)** | Has unreliable or no internet access after initial visit. Wants games that work anywhere. | Full offline play, PWA install, no dependency on network after first load |
+
+### 4.2 User Stories
+
+| ID | As a... | I want to... | So that... | Priority |
+|----|---------|-------------|-----------|----------|
+| US-01 | Casual Gamer | Start playing within seconds of opening the page | I don't lose interest waiting for loads | Must |
+| US-02 | Casual Gamer | Understand the controls without a tutorial | I can jump right into the action | Must |
+| US-03 | Retro Enthusiast | See asteroids split into smaller pieces when destroyed | The classic mechanic feels satisfying and strategic | Must |
+| US-04 | Retro Enthusiast | Track my high score across sessions | I have a reason to replay and improve | Should |
+| US-05 | Offline User | Install the game as a PWA on my device | I can play it like a native app without a browser tab | Should |
+| US-06 | Offline User | Play the game with no internet connection | I can enjoy the game on planes, commutes, or in low-connectivity areas | Must |
+| US-07 | Any Player | See clear visual feedback when I destroy an asteroid or take damage | I always know what's happening in the game | Must |
+| US-08 | Any Player | Progress through increasingly difficult areas | The game stays challenging and engaging over time | Must |
+
+---
+
+## 5. Research Findings
+
+### 5.1 Why Babylon.js
 
 Babylon.js is the recommended engine for this project for the following reasons:
 
@@ -27,7 +82,7 @@ Babylon.js is the recommended engine for this project for the following reasons:
 - **Asset Management:** `AssetsManager` and `SceneLoader` for preloading all assets before gameplay begins.
 - **Tree Shaking:** The `@babylonjs/core` ES module package supports tree shaking, keeping bundle size manageable for offline caching.
 
-### 2.2 Third-Person Camera Analysis
+### 5.2 Third-Person Camera Analysis
 
 | Camera Type | Pros | Cons | Recommendation |
 |---|---|---|---|
@@ -42,7 +97,7 @@ Babylon.js is the recommended engine for this project for the following reasons:
 - `cameraAcceleration`: 0.05 (smooth follow, not instant)
 - `maxCameraSpeed`: 10
 
-### 2.3 Offline Play Strategy
+### 5.3 Offline Play Strategy
 
 For full offline capability:
 
@@ -51,7 +106,7 @@ For full offline capability:
 3. **No External CDN Dependencies at Runtime:** All Babylon.js modules and dependencies must be bundled into the application. Do not use CDN `<script>` tags for production.
 4. **Web App Manifest:** Include a `manifest.json` to allow the game to be installed as a Progressive Web App (PWA).
 
-### 2.4 Gameplay Best Practices for Arcade-Style 3D Games
+### 5.4 Gameplay Best Practices for Arcade-Style 3D Games
 
 Based on established game design principles:
 
@@ -66,9 +121,9 @@ Based on established game design principles:
 
 ---
 
-## 3. Game Concept
+## 6. Game Concept
 
-### 3.1 Core Loop
+### 6.1 Core Loop
 
 ```
 Start Game
@@ -83,7 +138,7 @@ Start Game
   → Continue for subsequent areas...
 ```
 
-### 3.2 Win/Lose Conditions
+### 6.2 Win/Lose Conditions
 
 - **Wave Complete:** All asteroids in the current wave are destroyed.
 - **Area Complete:** All 3 waves in the current area are cleared. Barriers turn green. An exit opening appears or the barriers become passable.
@@ -92,9 +147,9 @@ Start Game
 
 ---
 
-## 4. Technical Architecture
+## 7. Technical Architecture
 
-### 4.1 Technology Stack
+### 7.1 Technology Stack
 
 | Component | Technology | Version / Notes |
 |---|---|---|
@@ -106,7 +161,7 @@ Start Game
 | PWA | Web App Manifest | Installable on desktop and mobile |
 | Package Manager | npm | Standard Node.js package management |
 
-### 4.2 Project Structure
+### 7.2 Project Structure
 
 ```
 3d-space-rocks/
@@ -143,7 +198,7 @@ Start Game
     └── PRD.md               # This document
 ```
 
-### 4.3 Key Babylon.js APIs to Use
+### 7.3 Key Babylon.js APIs to Use
 
 | Feature | Babylon.js API |
 |---|---|
@@ -164,9 +219,9 @@ Start Game
 
 ---
 
-## 5. Functional Requirements
+## 8. Functional Requirements
 
-### 5.1 Player Ship
+### 8.1 Player Ship
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -181,7 +236,7 @@ Start Game
 | P-09 | Ship has a maximum velocity cap to prevent uncontrollable speeds | Must |
 | P-10 | Ship experiences gradual deceleration (drag) when not accelerating | Must |
 
-### 5.2 Asteroids
+### 8.2 Asteroids
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -196,7 +251,7 @@ Start Game
 | A-09 | Asteroid-player collision causes the player to lose a life | Must |
 | A-10 | Asteroid destruction triggers a particle explosion effect | Should |
 
-### 5.3 Play Area / Arena
+### 8.3 Play Area / Arena
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -211,7 +266,7 @@ Start Game
 | AR-09 | Barriers have a subtle pulsing glow effect (2-second cycle, emissive intensity varying ±20%) to make them feel active/energized | Should |
 | AR-10 | Arena dimensions may increase slightly in later areas to accommodate more asteroids | Could |
 
-### 5.4 Wave System
+### 8.4 Wave System
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -237,7 +292,7 @@ Start Game
 | W-07 | Area transition: when the player enters the exit zone, fade to black, reset arena, reset barriers to default color, start wave 1 of the next area | Must |
 | W-08 | Display current area number and wave number in the HUD | Must |
 
-### 5.5 Camera
+### 8.5 Camera
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -247,7 +302,7 @@ Start Game
 | C-04 | Camera parameters: radius ~20, height offset ~8, rotation offset 180° | Should |
 | C-05 | Subtle camera shake effect on player damage and large explosions | Should |
 
-### 5.6 Scoring
+### 8.6 Scoring
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -259,7 +314,7 @@ Start Game
 | S-06 | Score is displayed in the HUD at all times | Must |
 | S-07 | High score is persisted in `localStorage` | Should |
 
-### 5.7 HUD / UI
+### 8.7 HUD / UI
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -272,7 +327,7 @@ Start Game
 | H-07 | Loading progress bar during asset preloading | Should |
 | H-08 | Pause menu on Escape key with Resume and Restart options | Should |
 
-### 5.8 Audio
+### 8.8 Audio
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -284,7 +339,7 @@ Start Game
 | AU-06 | Background ambient space music (looped) | Could |
 | AU-07 | All audio files bundled locally for offline play | Must (if audio is implemented) |
 
-### 5.9 Offline / PWA
+### 8.9 Offline / PWA
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -295,7 +350,7 @@ Start Game
 
 ---
 
-## 6. Non-Functional Requirements
+## 9. Non-Functional Requirements
 
 | ID | Requirement | Priority |
 |---|---|---|
@@ -309,7 +364,39 @@ Start Game
 
 ---
 
-## 7. Controls
+## 10. Security and Privacy
+
+| ID | Requirement | Priority |
+|---|---|---|
+| SP-01 | The game does not collect, transmit, or store any personal user data | Must |
+| SP-02 | All game data (high scores, settings) is stored exclusively in the browser's `localStorage` | Must |
+| SP-03 | No third-party analytics, tracking scripts, or external network calls during gameplay | Must |
+| SP-04 | The Service Worker must only cache assets from the application's own origin | Must |
+| SP-05 | All dependencies must be bundled locally; no runtime CDN loads that could be compromised | Must |
+| SP-06 | The Content Security Policy (CSP) should restrict scripts to `self` to prevent XSS | Should |
+
+**Notes:**
+- Since the game is entirely client-side with no server communication, the attack surface is minimal.
+- The primary security concern is ensuring the Service Worker and cached assets cannot be tampered with and that no user data leaks to external services.
+
+---
+
+## 11. Accessibility
+
+| ID | Requirement | Priority |
+|---|---|---|
+| ACC-01 | All UI text (HUD, menus, overlays) must meet WCAG 2.1 AA contrast ratio (≥ 4.5:1) | Should |
+| ACC-02 | The game must be fully playable using keyboard only (no mouse required) | Must |
+| ACC-03 | Interactive UI elements (menu buttons, pause options) must have visible focus indicators | Should |
+| ACC-04 | Color is not the sole indicator of state changes — barrier transitions should also include a visual pattern change or text label (e.g., "Area Complete" overlay) | Should |
+| ACC-05 | Provide an option to disable or reduce screen shake and flashing effects for motion-sensitive users | Could |
+| ACC-06 | Audio cues should have corresponding visual feedback so deaf/hard-of-hearing players receive equivalent information | Should |
+| ACC-07 | The game canvas should include an accessible label (`aria-label`) describing the game for screen readers | Should |
+| ACC-08 | Font sizes in the HUD should be configurable or at least large enough to be readable at common viewport sizes | Should |
+
+---
+
+## 12. Controls
 
 | Action | Keyboard | Gamepad (if supported) |
 |---|---|---|
@@ -325,7 +412,7 @@ Gamepad support is a **Could** priority. Keyboard controls are **Must**.
 
 ---
 
-## 8. Visual Style
+## 13. Visual Style
 
 - **Space Environment:** Dark skybox with stars. Optionally a subtle nebula texture.
 - **Ship:** Simple geometric mesh (low-poly wedge/arrow shape) or a loaded `.glb` model. Glowing thruster at the rear.
@@ -336,7 +423,7 @@ Gamepad support is a **Could** priority. Keyboard controls are **Must**.
 
 ---
 
-## 9. Game State Machine
+## 14. Game State Machine
 
 ```
 [LOADING] → [MENU] → [PLAYING] → [WAVE_TRANSITION] → [PLAYING] → ...
@@ -360,7 +447,7 @@ Gamepad support is a **Could** priority. Keyboard controls are **Must**.
 
 ---
 
-## 10. Implementation Phases
+## 15. Implementation Phases
 
 ### Phase 1: Foundation
 - [ ] Initialize Vite + TypeScript project with Babylon.js dependencies
@@ -401,7 +488,53 @@ Gamepad support is a **Could** priority. Keyboard controls are **Must**.
 
 ---
 
-## 11. Acceptance Criteria
+## 16. Testing Strategy
+
+### 16.1 Testing Levels
+
+| Level | Scope | Tools / Approach |
+|-------|-------|------------------|
+| **Unit Tests** | Individual utility functions (`MathHelpers`, `Constants`), scoring calculations, wave difficulty scaling logic | Vitest or Jest with TypeScript |
+| **Integration Tests** | Game state machine transitions, wave progression logic, collision response sequences | Vitest with mock Babylon.js scene objects |
+| **Manual Playtesting** | Full gameplay loop, controls feel, visual quality, difficulty curve tuning | Developer and peer play sessions |
+| **Performance Testing** | FPS measurement across target browsers and hardware | Browser DevTools profiling, Babylon.js Inspector |
+| **Offline Testing** | Service Worker caching, PWA install, gameplay after network disconnect | Chrome DevTools Application panel, Lighthouse |
+| **Cross-Browser Testing** | Rendering, input, and audio across Chrome, Firefox, Edge, Safari | Manual verification on each browser |
+
+### 16.2 Key Test Scenarios
+
+1. Player can complete all 3 waves in an area and barriers turn green
+2. Exiting through the green barrier loads the next area with increased difficulty
+3. Asteroid splitting produces the correct number and size of child asteroids
+4. Player loses a life on asteroid collision and receives invulnerability frames
+5. Game Over triggers at 0 lives with correct final score
+6. Victory screen appears after completing the final area
+7. Score persists in `localStorage` across sessions
+8. Game loads and plays correctly after going offline
+9. No runtime errors or unhandled rejections during a full 3-area playthrough
+10. 60 FPS maintained with maximum asteroid count on target hardware
+
+---
+
+## 17. Analytics / Success Metrics
+
+Since this is a client-side game with no server-side telemetry, success is measured through local observability and qualitative feedback.
+
+| Metric | Target | Measurement Method |
+|--------|--------|--------------------|
+| **Frame Rate** | ≥ 60 FPS sustained during gameplay | Babylon.js engine FPS counter, browser DevTools |
+| **Load Time** | < 5 seconds on broadband, < 3 seconds on repeat visit (cached) | Lighthouse performance audit |
+| **Bundle Size** | < 15 MB total cached assets | Build output analysis (`vite build`) |
+| **Offline Reliability** | 100% functionality after disconnect | Manual test: load, disconnect, play full session |
+| **Completion Rate** | Players can complete all 3 areas without encountering bugs | Playtesting sessions |
+| **Session Length** | Average play session of 5–15 minutes for a full 3-area game | Playtesting observation |
+| **Browser Compatibility** | Zero critical rendering or input bugs across Chrome, Firefox, Edge, Safari | Cross-browser test matrix |
+
+**Future consideration:** If analytics become desired, a lightweight opt-in event system could log gameplay events (waves completed, score, deaths) to `localStorage` for local review, with no external transmission.
+
+---
+
+## 18. Acceptance Criteria
 
 The game is considered complete when:
 
@@ -415,7 +548,53 @@ The game is considered complete when:
 
 ---
 
-## 12. Open Questions
+## 19. Dependencies and Risks
+
+### 19.1 Dependencies
+
+| Dependency | Type | Risk if Unavailable | Mitigation |
+|------------|------|---------------------|------------|
+| Babylon.js (`@babylonjs/core` ^7.0) | npm package | Cannot render 3D scene | Pin version in `package.json`; bundle locally |
+| Babylon.js GUI (`@babylonjs/gui`) | npm package | No HUD or menu screens | Pin version; bundle locally |
+| cannon-es | npm package | No physics simulation | Pin version; bundle locally |
+| Vite | Build tool | Cannot bundle or serve locally | Pin version; standard npm tooling |
+| Modern browser with WebGL 2.0 | Runtime | Game will not render | Document minimum browser versions; show fallback message |
+| Service Worker API | Runtime | No offline support | Graceful degradation; game still works online |
+
+### 19.2 Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Babylon.js bundle size exceeds 15 MB cache budget | Medium | Slow first load, large cache | Aggressive tree shaking; import only used modules |
+| Physics performance degrades with many asteroids | Medium | FPS drops below 60 | Cap max active asteroid count; use simple collision shapes |
+| WebGPU API inconsistency across browsers | Low | Rendering issues on some browsers | Default to WebGL 2.0; use WebGPU only as enhancement |
+| Service Worker cache invalidation fails | Low | Players stuck on old version | Implement cache versioning with skip-waiting strategy |
+| Cannon-es physics behavior differs from Havok/Ammo | Low | Unexpected collision responses | Test physics thoroughly; tune impostor parameters |
+| Scope creep (power-ups, multiplayer, story mode) | Medium | Delayed delivery | Strict adherence to v1 non-goals |
+
+---
+
+## 20. Future Considerations
+
+The following items are explicitly **out of scope for v1** but are documented here for potential future releases:
+
+| Item | Description | Potential Version |
+|------|-------------|-------------------|
+| **Power-ups** | Shield, rapid fire, spread shot, slow-motion pickups dropped by asteroids | v2 |
+| **Mobile / Touch Controls** | On-screen joystick and fire button for mobile browsers | v2 |
+| **Multiplayer** | Local split-screen or networked cooperative/competitive play | v3 |
+| **Custom Ship Models** | Import `.glb` ship models to replace geometric primitives | v2 |
+| **Leaderboard** | Online high-score leaderboard with optional username submission | v2 |
+| **Sound Settings** | Volume sliders for SFX and music, mute toggle | v2 |
+| **Difficulty Modes** | Easy / Normal / Hard presets affecting asteroid count and speed | v2 |
+| **Gamepad Support** | Full gamepad input mapping with button prompts | v2 |
+| **Level Editor** | User-created wave configurations and arena layouts | v3 |
+| **Narrative Mode** | Mission briefings, boss encounters, story progression | v3 |
+| **Analytics / Telemetry** | Opt-in gameplay event logging for difficulty tuning | v2 |
+
+---
+
+## 21. Open Questions
 
 | # | Question | Default Assumption |
 |---|---|---|
@@ -429,7 +608,7 @@ The game is considered complete when:
 
 ---
 
-## 13. Glossary
+## 22. Glossary
 
 | Term | Definition |
 |---|---|
