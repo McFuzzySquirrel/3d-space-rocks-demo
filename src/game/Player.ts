@@ -31,6 +31,7 @@ export interface PlayerState {
   readonly position: Vector3;
   readonly velocity: Vector3;
   readonly yawRadians: number;
+  readonly pitchRadians: number;
 }
 
 /**
@@ -101,15 +102,25 @@ export class Player {
   private _position: Vector3;
   private _velocity: Vector3;
   private _yawRadians: number = 0;
+  private _pitchRadians: number = 0;
   private _inputState: {
     thrustForward: boolean;
+    thrustUp: boolean;
+    thrustDown: boolean;
     rotateLeft: boolean;
     rotateRight: boolean;
+    pitchUp: boolean;
+    pitchDown: boolean;
   } = {
     thrustForward: false,
+    thrustUp: false,
+    thrustDown: false,
     rotateLeft: false,
-    rotateRight: false
+    rotateRight: false,
+    pitchUp: false,
+    pitchDown: false
   };
+  private _mousePitchInput: number = 0;
   private _inputEnabled: boolean = true;
 
   // Combat state
@@ -125,6 +136,11 @@ export class Player {
   // Input listeners
   private _onKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private _onKeyUp: ((event: KeyboardEvent) => void) | null = null;
+  private _onMouseMove: ((event: MouseEvent) => void) | null = null;
+
+  private static readonly MAX_PITCH_RADIANS: number = Math.PI / 3;
+  private static readonly KEYBOARD_PITCH_SPEED_RADIANS: number = 1.9;
+  private static readonly MOUSE_PITCH_SENSITIVITY: number = 0.012;
 
   // VFX
   private _thrusterEffect!: ThrusterEffect;
@@ -199,7 +215,8 @@ export class Player {
     return {
       position: this._position.clone(),
       velocity: this._velocity.clone(),
-      yawRadians: this._yawRadians
+      yawRadians: this._yawRadians,
+      pitchRadians: this._pitchRadians
     };
   }
 
@@ -210,9 +227,11 @@ export class Player {
     this._position.copyFrom(state.position);
     this._velocity.copyFrom(state.velocity);
     this._yawRadians = state.yawRadians;
+    this._pitchRadians = state.pitchRadians;
 
     this._mesh.position.copyFrom(this._position);
     this._mesh.rotation.y = this._yawRadians;
+    this._mesh.rotation.x = Math.PI / 2 + this._pitchRadians;
   }
 
   /**
@@ -224,8 +243,13 @@ export class Player {
 
     if (!enabled) {
       this._inputState.thrustForward = false;
+      this._inputState.thrustUp = false;
+      this._inputState.thrustDown = false;
       this._inputState.rotateLeft = false;
       this._inputState.rotateRight = false;
+      this._inputState.pitchUp = false;
+      this._inputState.pitchDown = false;
+      this._mousePitchInput = 0;
     }
   }
 
@@ -242,6 +266,7 @@ export class Player {
     this._position.copyFrom(spawn);
     this._velocity.set(0, 0, 0);
     this._yawRadians = 0;
+    this._pitchRadians = 0;
 
     if (!preserveLives) {
       this._lives = PLAYER_COMBAT_CONFIG.maxLives;
@@ -257,6 +282,7 @@ export class Player {
 
     this._mesh.position.copyFrom(this._position);
     this._mesh.rotation.y = this._yawRadians;
+    this._mesh.rotation.x = Math.PI / 2 + this._pitchRadians;
   }
 
   /**
@@ -276,7 +302,7 @@ export class Player {
     }
 
     // Calculate spawn position: 2 units forward along ship heading
-    const heading = new Vector3(Math.sin(this._yawRadians), 0, Math.cos(this._yawRadians));
+    const heading = this._computeForwardDirection();
     const spawnPosition = this._position.add(heading.scale(PLAYER_COMBAT_CONFIG.projectileSpawnDistance));
 
     // Create projectile with direction and speed from config
@@ -379,6 +405,7 @@ export class Player {
     // Sync mesh position and rotation
     this._mesh.position.copyFrom(this._position);
     this._mesh.rotation.y = this._yawRadians;
+    this._mesh.rotation.x = Math.PI / 2 + this._pitchRadians;
   }
 
   /**
@@ -403,6 +430,9 @@ export class Player {
     }
     if (this._onKeyUp) {
       window.removeEventListener("keyup", this._onKeyUp);
+    }
+    if (this._onMouseMove) {
+      window.removeEventListener("mousemove", this._onMouseMove);
     }
 
     // Dispose thruster VFX
@@ -470,14 +500,31 @@ export class Player {
         case "KeyW":
         case "ArrowUp":
           this._inputState.thrustForward = true;
+          event.preventDefault();
+          break;
+        case "KeyQ":
+          this._inputState.thrustUp = true;
+          break;
+        case "KeyE":
+          this._inputState.thrustDown = true;
           break;
         case "KeyA":
         case "ArrowLeft":
           this._inputState.rotateLeft = true;
+          event.preventDefault();
           break;
         case "KeyD":
         case "ArrowRight":
           this._inputState.rotateRight = true;
+          event.preventDefault();
+          break;
+        case "KeyI":
+        case "PageUp":
+          this._inputState.pitchUp = true;
+          break;
+        case "KeyK":
+        case "PageDown":
+          this._inputState.pitchDown = true;
           break;
         case "Space":
           event.preventDefault();
@@ -497,22 +544,55 @@ export class Player {
         case "KeyW":
         case "ArrowUp":
           this._inputState.thrustForward = false;
+          event.preventDefault();
+          break;
+        case "KeyQ":
+          this._inputState.thrustUp = false;
+          break;
+        case "KeyE":
+          this._inputState.thrustDown = false;
           break;
         case "KeyA":
         case "ArrowLeft":
           this._inputState.rotateLeft = false;
+          event.preventDefault();
           break;
         case "KeyD":
         case "ArrowRight":
           this._inputState.rotateRight = false;
+          event.preventDefault();
+          break;
+        case "KeyI":
+        case "PageUp":
+          this._inputState.pitchUp = false;
+          break;
+        case "KeyK":
+        case "PageDown":
+          this._inputState.pitchDown = false;
           break;
         default:
           break;
       }
     };
 
+    this._onMouseMove = (event: MouseEvent): void => {
+      if (!this._inputEnabled) {
+        return;
+      }
+
+      if (event.buttons === 0 && document.pointerLockElement !== this._mesh.getScene().getEngine().getInputElement()) {
+        return;
+      }
+
+      this._mousePitchInput = Math.max(
+        -1,
+        Math.min(1, this._mousePitchInput + (-event.movementY * Player.MOUSE_PITCH_SENSITIVITY))
+      );
+    };
+
     window.addEventListener("keydown", this._onKeyDown);
     window.addEventListener("keyup", this._onKeyUp);
+    window.addEventListener("mousemove", this._onMouseMove);
   }
 
   /**
@@ -523,10 +603,21 @@ export class Player {
     const turnInput = Number(this._inputState.rotateLeft) - Number(this._inputState.rotateRight);
     this._yawRadians += turnInput * this._config.turnSpeedRadians * deltaSeconds;
 
+    const keyboardPitchInput = Number(this._inputState.pitchUp) - Number(this._inputState.pitchDown);
+    this._pitchRadians += keyboardPitchInput * Player.KEYBOARD_PITCH_SPEED_RADIANS * deltaSeconds;
+    this._pitchRadians += this._mousePitchInput;
+    this._pitchRadians = Math.max(-Player.MAX_PITCH_RADIANS, Math.min(Player.MAX_PITCH_RADIANS, this._pitchRadians));
+    this._mousePitchInput = 0;
+
     // Handle thrust
     if (this._inputState.thrustForward) {
-      const forward = new Vector3(Math.sin(this._yawRadians), 0, Math.cos(this._yawRadians));
+      const forward = this._computeForwardDirection();
       this._velocity.addInPlace(forward.scale(this._config.thrustAcceleration * deltaSeconds));
+    }
+
+    const verticalInput = Number(this._inputState.thrustUp) - Number(this._inputState.thrustDown);
+    if (verticalInput !== 0) {
+      this._velocity.y += verticalInput * this._config.thrustAcceleration * deltaSeconds;
     }
 
     // Apply drag and clamp speed
@@ -549,6 +640,18 @@ export class Player {
     }
 
     velocity.scaleInPlace(maxSpeed / speed);
+  }
+
+  /**
+   * Computes normalized forward direction from current yaw and pitch.
+   */
+  private _computeForwardDirection(): Vector3 {
+    const cosPitch = Math.cos(this._pitchRadians);
+    return new Vector3(
+      Math.sin(this._yawRadians) * cosPitch,
+      Math.sin(this._pitchRadians),
+      Math.cos(this._yawRadians) * cosPitch
+    );
   }
 
   /**

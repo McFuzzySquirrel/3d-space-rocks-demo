@@ -52,6 +52,7 @@ export interface ArenaMovementState {
   readonly position: Vector3;
   readonly velocity: Vector3;
   readonly yawRadians: number;
+  readonly pitchRadians: number;
 }
 
 const EXIT_ZONE_INDICATOR_HEIGHT = 5;
@@ -208,7 +209,8 @@ function resolveContainedState(
   return {
     position,
     velocity,
-    yawRadians: state.yawRadians
+    yawRadians: state.yawRadians,
+    pitchRadians: state.pitchRadians
   };
 }
 

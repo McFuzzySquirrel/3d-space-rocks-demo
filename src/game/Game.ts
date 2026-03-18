@@ -519,6 +519,7 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
           position: state.position.add(move),
           velocity: Vector3.Zero(),
           yawRadians: state.yawRadians,
+          pitchRadians: state.pitchRadians,
         });
       }
 
