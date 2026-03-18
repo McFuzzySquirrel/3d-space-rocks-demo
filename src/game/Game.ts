@@ -270,6 +270,7 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
           for (const asteroid of this._asteroids) {
             if (!asteroid.isDestroyed) {
               asteroid.update(stepSeconds);
+              this.reflectAsteroidWithinArena(asteroid);
             }
           }
 
@@ -586,6 +587,55 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
       if (this._transitionTimer !== null) {
         clearTimeout(this._transitionTimer);
         this._transitionTimer = null;
+      }
+    }
+
+    private reflectAsteroidWithinArena(asteroid: Asteroid): void {
+      const bounds = this._arena.bounds;
+      const position = asteroid.mesh.position;
+      const radius = asteroid.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+      const velocity = asteroid.getVelocity();
+      let bounced = false;
+
+      const minX = bounds.minX + radius;
+      const maxX = bounds.maxX - radius;
+      const minY = bounds.minY + radius;
+      const maxY = bounds.maxY - radius;
+      const minZ = bounds.minZ + radius;
+      const maxZ = bounds.maxZ - radius;
+
+      if (position.x <= minX && velocity.x < 0) {
+        position.x = minX;
+        velocity.x *= -1;
+        bounced = true;
+      } else if (position.x >= maxX && velocity.x > 0) {
+        position.x = maxX;
+        velocity.x *= -1;
+        bounced = true;
+      }
+
+      if (position.y <= minY && velocity.y < 0) {
+        position.y = minY;
+        velocity.y *= -1;
+        bounced = true;
+      } else if (position.y >= maxY && velocity.y > 0) {
+        position.y = maxY;
+        velocity.y *= -1;
+        bounced = true;
+      }
+
+      if (position.z <= minZ && velocity.z < 0) {
+        position.z = minZ;
+        velocity.z *= -1;
+        bounced = true;
+      } else if (position.z >= maxZ && velocity.z > 0) {
+        position.z = maxZ;
+        velocity.z *= -1;
+        bounced = true;
+      }
+
+      if (bounced) {
+        asteroid.setVelocity(velocity);
       }
     }
 

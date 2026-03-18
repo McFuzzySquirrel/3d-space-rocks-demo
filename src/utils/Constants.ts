@@ -296,7 +296,7 @@ export const APP_CONFIG: AppConfig = {
       height: 100,
       depth: 200,
       wallThickness: 1.5,
-      wallAlpha: 0.34,
+      wallAlpha: 0.62,
       wallColor: {
         r: 1,
         g: 0.27,

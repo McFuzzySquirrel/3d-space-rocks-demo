@@ -69,7 +69,7 @@ const FRONT_BARRIER_FADE_FRAMES = 30;
 
 const COMPLETE_BARRIER_COLOR = new Color3(0, 1, 0);
 const DEFAULT_BARRIER_COLOR = Color3.FromHexString("#FF4500");
-const DEFAULT_BARRIER_ALPHA = 0.35;
+const DEFAULT_BARRIER_ALPHA = 0.62;
 
 const arenaExitZoneOpened$ = new Observable<{ position: Vector3 }>();
 const arenaExitZoneEntered$ = new Observable<void>();
@@ -81,12 +81,12 @@ export const arenaEvents = {
   barriersComplete$: arenaBarriersComplete$
 };
 
-function createWallMaterial(scene: Scene): StandardMaterial {
+function createWallMaterial(scene: Scene, config: ArenaConfig): StandardMaterial {
   const material = new StandardMaterial("arena-wall-material", scene);
 
-  material.diffuseColor = DEFAULT_BARRIER_COLOR.clone();
-  material.emissiveColor = DEFAULT_BARRIER_COLOR.scale(0.7);
-  material.alpha = DEFAULT_BARRIER_ALPHA;
+  material.diffuseColor = new Color3(config.wallColor.r, config.wallColor.g, config.wallColor.b);
+  material.emissiveColor = new Color3(config.wallEmissive.r, config.wallEmissive.g, config.wallEmissive.b);
+  material.alpha = config.wallAlpha;
   material.backFaceCulling = false;
 
   return material;
@@ -224,7 +224,7 @@ export function createArenaController(scene: Scene, config: ArenaConfig): ArenaC
     maxZ: config.depth / 2
   };
 
-  const wallMaterialTemplate = createWallMaterial(scene);
+  const wallMaterialTemplate = createWallMaterial(scene, config);
   const walls = createWalls(scene, config, wallMaterialTemplate);
   const wallMaterials = walls.map((wall) => wall.material as StandardMaterial);
   const frontWallMaterial = wallMaterials[EXIT_ZONE_FRONT_WALL_INDEX];
@@ -238,8 +238,8 @@ export function createArenaController(scene: Scene, config: ArenaConfig): ArenaC
   let exitIndicatorMesh: Mesh | null = null;
   let exitIndicatorMaterial: StandardMaterial | null = null;
 
-  const defaultBarrierColor = DEFAULT_BARRIER_COLOR.clone();
-  const defaultBarrierBaseEmissive = DEFAULT_BARRIER_COLOR.scale(0.7);
+  const defaultBarrierColor = new Color3(config.wallColor.r, config.wallColor.g, config.wallColor.b);
+  const defaultBarrierBaseEmissive = new Color3(config.wallEmissive.r, config.wallEmissive.g, config.wallEmissive.b);
   const completeBarrierBaseEmissive = COMPLETE_BARRIER_COLOR.scale(0.7);
   const exitZonePosition = new Vector3(0, 0, bounds.maxZ - EXIT_ZONE_TRIGGER_OFFSET);
   let activeBarrierColor = defaultBarrierColor.clone();
@@ -283,7 +283,7 @@ export function createArenaController(scene: Scene, config: ArenaConfig): ArenaC
     for (const material of wallMaterials) {
       material.diffuseColor.copyFrom(activeBarrierColor);
       material.emissiveColor.copyFrom(activeBarrierBaseEmissive);
-      material.alpha = DEFAULT_BARRIER_ALPHA;
+      material.alpha = config.wallAlpha;
     }
   }
 

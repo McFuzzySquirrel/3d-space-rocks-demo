@@ -15,6 +15,8 @@ export interface WaveConfig {
   readonly waveNumber: number;
   readonly areaNumber: number;
   readonly largeAsteroidCount: number;
+  readonly mediumAsteroidCount: number;
+  readonly smallAsteroidCount: number;
   readonly speedMultiplier: number;
 }
 
@@ -86,6 +88,10 @@ export function calculateWaveConfig(waveNum: 1 | 2 | 3, areaNum: number): WaveCo
   const baseCount = WAVE_CONFIG.baseAsteroidCounts[waveIdx];
   const areaCountFactor = Math.pow(WAVE_CONFIG.areaCountScale, areaNum - 1);
   const largeAsteroidCount = Math.round(baseCount * areaCountFactor);
+  const mediumBaseByWave = [1, 2, 3] as const;
+  const smallBaseByWave = [1, 3, 5] as const;
+  const mediumAsteroidCount = Math.max(1, Math.round(mediumBaseByWave[waveIdx] * areaCountFactor));
+  const smallAsteroidCount = Math.max(1, Math.round(smallBaseByWave[waveIdx] * areaCountFactor));
 
   const baseSpeedMultiplier = WAVE_CONFIG.baseSpeedMultipliers[waveIdx];
   const areaSpeedFactor = Math.pow(WAVE_CONFIG.areaSpeedScale, areaNum - 1);
@@ -95,6 +101,8 @@ export function calculateWaveConfig(waveNum: 1 | 2 | 3, areaNum: number): WaveCo
     waveNumber: waveNum,
     areaNumber: areaNum,
     largeAsteroidCount,
+    mediumAsteroidCount,
+    smallAsteroidCount,
     speedMultiplier,
   };
 }
@@ -143,6 +151,12 @@ export class WaveManager {
   private _isGameComplete: boolean = false;
 
   private _activeAsteroids: Asteroid[] = [];
+  private _pendingSpawnSizes: AsteroidSize[] = [];
+  private _activeWaveSpeedMultiplier: number = 1;
+  private _spawnIntervalHandle: ReturnType<typeof setInterval> | null = null;
+
+  private static readonly SPAWN_INTERVAL_MS = 1000;
+  private static readonly INITIAL_SPAWN_RATIO = 0.45;
 
   private _destroyedSubscription: (() => void) | null = null;
   private _childrenSubscription: (() => void) | null = null;
@@ -205,27 +219,51 @@ export class WaveManager {
     this._isAreaComplete = false;
     this._activeAsteroids = [];
     this._isWaveActive = true;
+    this.clearSpawnTimer();
 
     const waveConfig = calculateWaveConfig(
       this._currentWave as 1 | 2 | 3,
       this._currentArea
     );
+    this._activeWaveSpeedMultiplier = waveConfig.speedMultiplier;
 
-    for (let i = 0; i < waveConfig.largeAsteroidCount; i++) {
-      const position = this._randomSpawnPosition();
-      const velocity = this._randomVelocity(waveConfig.speedMultiplier);
-      const asteroid = this._spawnFn({
-        size: AsteroidSize.LARGE,
-        position,
-        velocity,
-      });
-      this._activeAsteroids.push(asteroid);
+    this._pendingSpawnSizes = [
+      ...Array(waveConfig.largeAsteroidCount).fill(AsteroidSize.LARGE),
+      ...Array(waveConfig.mediumAsteroidCount).fill(AsteroidSize.MEDIUM),
+      ...Array(waveConfig.smallAsteroidCount).fill(AsteroidSize.SMALL),
+    ];
+
+    // Shuffle so sizes arrive mixed over time.
+    for (let i = this._pendingSpawnSizes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this._pendingSpawnSizes[i], this._pendingSpawnSizes[j]] = [this._pendingSpawnSizes[j], this._pendingSpawnSizes[i]];
+    }
+
+    const totalAsteroids = this._pendingSpawnSizes.length;
+    const initialSpawnCount = Math.max(1, Math.round(totalAsteroids * WaveManager.INITIAL_SPAWN_RATIO));
+    for (let i = 0; i < initialSpawnCount; i++) {
+      this.spawnNextAsteroidFromQueue();
+    }
+
+    if (this._pendingSpawnSizes.length > 0) {
+      this._spawnIntervalHandle = setInterval(() => {
+        if (!this._isWaveActive) {
+          this.clearSpawnTimer();
+          return;
+        }
+
+        this.spawnNextAsteroidFromQueue();
+
+        if (this._pendingSpawnSizes.length === 0) {
+          this.clearSpawnTimer();
+        }
+      }, WaveManager.SPAWN_INTERVAL_MS);
     }
 
     waveManagerEvents.waveStarted$.notifyObservers({
       wave: this._currentWave,
       area: this._currentArea,
-      asteroidCount: waveConfig.largeAsteroidCount,
+      asteroidCount: totalAsteroids,
     });
   }
 
@@ -248,6 +286,7 @@ export class WaveManager {
    */
   public checkWaveComplete(): boolean {
     return (
+      this._pendingSpawnSizes.length === 0 &&
       this._activeAsteroids.length > 0 &&
       this._activeAsteroids.every(a => a.isDestroyed)
     );
@@ -263,6 +302,7 @@ export class WaveManager {
    */
   public advanceWave(): void {
     this._isWaveActive = false;
+    this.clearSpawnTimer();
 
     const completedWave = this._currentWave;
     this._currentWave++;
@@ -313,7 +353,10 @@ export class WaveManager {
     this._isAreaComplete = false;
     this._isGameComplete = false;
     this._activeAsteroids = [];
+    this._pendingSpawnSizes = [];
+    this._activeWaveSpeedMultiplier = 1;
     this._waveCompleteCheckPending = false;
+    this.clearSpawnTimer();
   }
 
   /**
@@ -419,9 +462,32 @@ export class WaveManager {
    *
    * @param speedMultiplier Combined wave × area speed factor from calculateWaveConfig
    */
-  private _randomVelocity(speedMultiplier: number): Vector3 {
-    const speed = ASTEROID_CONFIG.speedBase.Large * speedMultiplier;
+  private _randomVelocity(size: AsteroidSize, speedMultiplier: number): Vector3 {
+    const speed = ASTEROID_CONFIG.speedBase[size] * speedMultiplier;
     const angle = Math.random() * Math.PI * 2;
     return new Vector3(Math.cos(angle) * speed, 0, Math.sin(angle) * speed);
+  }
+
+  private spawnNextAsteroidFromQueue(): void {
+    const size = this._pendingSpawnSizes.shift();
+    if (!size) {
+      return;
+    }
+
+    const position = this._randomSpawnPosition();
+    const velocity = this._randomVelocity(size, this._activeWaveSpeedMultiplier);
+    const asteroid = this._spawnFn({
+      size,
+      position,
+      velocity,
+    });
+    this._activeAsteroids.push(asteroid);
+  }
+
+  private clearSpawnTimer(): void {
+    if (this._spawnIntervalHandle !== null) {
+      clearInterval(this._spawnIntervalHandle);
+      this._spawnIntervalHandle = null;
+    }
   }
 }

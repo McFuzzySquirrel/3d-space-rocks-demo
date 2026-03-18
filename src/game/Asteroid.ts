@@ -148,6 +148,22 @@ export class Asteroid {
   }
 
   /**
+   * Gets the asteroid's current linear velocity.
+   */
+  public getVelocity(): Vector3 {
+    const physicsVelocity = this._physicsImpostor.getLinearVelocity();
+    return (physicsVelocity ?? this._velocity).clone();
+  }
+
+  /**
+   * Sets the asteroid's linear velocity and syncs physics state.
+   */
+  public setVelocity(velocity: Vector3): void {
+    this._velocity.copyFrom(velocity);
+    this._physicsImpostor.setLinearVelocity(velocity);
+  }
+
+  /**
    * Initializes random rotation axes and angular velocity.
    * Asteroids rotate on random axes with speed between 0.5 and 1.0 rad/s
    */

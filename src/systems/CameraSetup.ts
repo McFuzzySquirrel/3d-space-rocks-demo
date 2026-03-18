@@ -50,8 +50,6 @@ export function setupFollowCamera(
   camera.rotationOffset = config.rotationOffset;
   camera.cameraAcceleration = config.cameraAcceleration;
   camera.maxCameraSpeed = config.maxCameraSpeed;
-
-  camera.attachControl();
   scene.activeCamera = camera;
 
   return camera;

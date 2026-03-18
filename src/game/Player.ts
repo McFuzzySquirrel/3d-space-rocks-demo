@@ -105,22 +105,16 @@ export class Player {
   private _pitchRadians: number = 0;
   private _inputState: {
     thrustForward: boolean;
-    thrustUp: boolean;
-    thrustDown: boolean;
-    rotateLeft: boolean;
-    rotateRight: boolean;
-    pitchUp: boolean;
-    pitchDown: boolean;
+    thrustBackward: boolean;
   } = {
     thrustForward: false,
-    thrustUp: false,
-    thrustDown: false,
-    rotateLeft: false,
-    rotateRight: false,
-    pitchUp: false,
-    pitchDown: false
+    thrustBackward: false
   };
+  private _mouseYawInput: number = 0;
   private _mousePitchInput: number = 0;
+  private _isMouseLookActive: boolean = false;
+  private _lastMouseClientX: number | null = null;
+  private _lastMouseClientY: number | null = null;
   private _inputEnabled: boolean = true;
 
   // Combat state
@@ -136,11 +130,17 @@ export class Player {
   // Input listeners
   private _onKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private _onKeyUp: ((event: KeyboardEvent) => void) | null = null;
+  private _onMouseDown: ((event: MouseEvent) => void) | null = null;
+  private _onMouseUp: ((event: MouseEvent) => void) | null = null;
   private _onMouseMove: ((event: MouseEvent) => void) | null = null;
+  private _onPointerDown: ((event: PointerEvent) => void) | null = null;
+  private _onPointerUp: ((event: PointerEvent) => void) | null = null;
+  private _onPointerMove: ((event: PointerEvent) => void) | null = null;
+  private _inputElement: HTMLElement | null = null;
 
   private static readonly MAX_PITCH_RADIANS: number = Math.PI / 3;
-  private static readonly KEYBOARD_PITCH_SPEED_RADIANS: number = 1.9;
-  private static readonly MOUSE_PITCH_SENSITIVITY: number = 0.012;
+  private static readonly MOUSE_YAW_SENSITIVITY: number = 0.0032;
+  private static readonly MOUSE_PITCH_SENSITIVITY: number = 0.0022;
 
   // VFX
   private _thrusterEffect!: ThrusterEffect;
@@ -198,7 +198,7 @@ export class Player {
    * Used by audio and external systems.
    */
   public get isThrusting(): boolean {
-    return this._inputState.thrustForward;
+    return this._inputState.thrustForward || this._inputState.thrustBackward;
   }
 
   /**
@@ -243,13 +243,12 @@ export class Player {
 
     if (!enabled) {
       this._inputState.thrustForward = false;
-      this._inputState.thrustUp = false;
-      this._inputState.thrustDown = false;
-      this._inputState.rotateLeft = false;
-      this._inputState.rotateRight = false;
-      this._inputState.pitchUp = false;
-      this._inputState.pitchDown = false;
+      this._inputState.thrustBackward = false;
+      this._mouseYawInput = 0;
       this._mousePitchInput = 0;
+      this._isMouseLookActive = false;
+      this._lastMouseClientX = null;
+      this._lastMouseClientY = null;
     }
   }
 
@@ -283,6 +282,11 @@ export class Player {
     this._mesh.position.copyFrom(this._position);
     this._mesh.rotation.y = this._yawRadians;
     this._mesh.rotation.x = Math.PI / 2 + this._pitchRadians;
+    this._mouseYawInput = 0;
+    this._mousePitchInput = 0;
+    this._isMouseLookActive = false;
+    this._lastMouseClientX = null;
+    this._lastMouseClientY = null;
   }
 
   /**
@@ -389,7 +393,7 @@ export class Player {
     this._updateMovement(deltaSeconds);
 
     // Update thruster VFX
-    this._thrusterEffect.update(this._inputState.thrustForward);
+    this._thrusterEffect.update(this._inputState.thrustForward || this._inputState.thrustBackward);
 
     // Update all active projectiles and clean up destroyed ones
     for (let i = this._activeProjectiles.length - 1; i >= 0; i--) {
@@ -431,8 +435,25 @@ export class Player {
     if (this._onKeyUp) {
       window.removeEventListener("keyup", this._onKeyUp);
     }
+    if (this._onMouseDown) {
+      window.removeEventListener("mousedown", this._onMouseDown);
+    }
+    if (this._onMouseUp) {
+      window.removeEventListener("mouseup", this._onMouseUp);
+    }
     if (this._onMouseMove) {
       window.removeEventListener("mousemove", this._onMouseMove);
+    }
+    if (this._inputElement && this._onPointerDown) {
+      this._inputElement.removeEventListener("pointerdown", this._onPointerDown);
+    }
+    if (this._inputElement && this._onPointerUp) {
+      this._inputElement.removeEventListener("pointerup", this._onPointerUp);
+      this._inputElement.removeEventListener("pointercancel", this._onPointerUp);
+      this._inputElement.removeEventListener("lostpointercapture", this._onPointerUp);
+    }
+    if (this._inputElement && this._onPointerMove) {
+      this._inputElement.removeEventListener("pointermove", this._onPointerMove);
     }
 
     // Dispose thruster VFX
@@ -502,29 +523,10 @@ export class Player {
           this._inputState.thrustForward = true;
           event.preventDefault();
           break;
-        case "KeyQ":
-          this._inputState.thrustUp = true;
-          break;
-        case "KeyE":
-          this._inputState.thrustDown = true;
-          break;
-        case "KeyA":
-        case "ArrowLeft":
-          this._inputState.rotateLeft = true;
+        case "KeyS":
+        case "ArrowDown":
+          this._inputState.thrustBackward = true;
           event.preventDefault();
-          break;
-        case "KeyD":
-        case "ArrowRight":
-          this._inputState.rotateRight = true;
-          event.preventDefault();
-          break;
-        case "KeyI":
-        case "PageUp":
-          this._inputState.pitchUp = true;
-          break;
-        case "KeyK":
-        case "PageDown":
-          this._inputState.pitchDown = true;
           break;
         case "Space":
           event.preventDefault();
@@ -546,29 +548,10 @@ export class Player {
           this._inputState.thrustForward = false;
           event.preventDefault();
           break;
-        case "KeyQ":
-          this._inputState.thrustUp = false;
-          break;
-        case "KeyE":
-          this._inputState.thrustDown = false;
-          break;
-        case "KeyA":
-        case "ArrowLeft":
-          this._inputState.rotateLeft = false;
+        case "KeyS":
+        case "ArrowDown":
+          this._inputState.thrustBackward = false;
           event.preventDefault();
-          break;
-        case "KeyD":
-        case "ArrowRight":
-          this._inputState.rotateRight = false;
-          event.preventDefault();
-          break;
-        case "KeyI":
-        case "PageUp":
-          this._inputState.pitchUp = false;
-          break;
-        case "KeyK":
-        case "PageDown":
-          this._inputState.pitchDown = false;
           break;
         default:
           break;
@@ -580,44 +563,126 @@ export class Player {
         return;
       }
 
-      if (event.buttons === 0 && document.pointerLockElement !== this._mesh.getScene().getEngine().getInputElement()) {
+      // If a button is currently held, treat movement as active mouse-look
+      // even when a prior down/up event was swallowed by UI layers.
+      if (event.buttons !== 0) {
+        this._isMouseLookActive = true;
+      }
+
+      if (!this._isMouseLookActive) {
         return;
       }
 
-      this._mousePitchInput = Math.max(
-        -1,
-        Math.min(1, this._mousePitchInput + (-event.movementY * Player.MOUSE_PITCH_SENSITIVITY))
-      );
+      const deltaX = event.movementX !== 0 || event.movementY !== 0
+        ? event.movementX
+        : (this._lastMouseClientX !== null ? event.clientX - this._lastMouseClientX : 0);
+      const deltaY = event.movementX !== 0 || event.movementY !== 0
+        ? event.movementY
+        : (this._lastMouseClientY !== null ? event.clientY - this._lastMouseClientY : 0);
+
+      this._mouseYawInput += deltaX * Player.MOUSE_YAW_SENSITIVITY;
+      this._mousePitchInput += -deltaY * Player.MOUSE_PITCH_SENSITIVITY;
+      this._lastMouseClientX = event.clientX;
+      this._lastMouseClientY = event.clientY;
+    };
+
+    this._onMouseDown = (event: MouseEvent): void => {
+      if (!this._inputEnabled) {
+        return;
+      }
+
+      this._isMouseLookActive = true;
+      this._lastMouseClientX = event.clientX;
+      this._lastMouseClientY = event.clientY;
+    };
+
+    this._onMouseUp = (event: MouseEvent): void => {
+      if (event.buttons !== 0) {
+        return;
+      }
+
+      this._isMouseLookActive = false;
+      this._lastMouseClientX = null;
+      this._lastMouseClientY = null;
     };
 
     window.addEventListener("keydown", this._onKeyDown);
     window.addEventListener("keyup", this._onKeyUp);
+    window.addEventListener("mousedown", this._onMouseDown);
+    window.addEventListener("mouseup", this._onMouseUp);
     window.addEventListener("mousemove", this._onMouseMove);
+
+    // Canvas-level pointer handlers are more reliable than window mouse events when GUI layers consume input.
+    this._inputElement = this._mesh.getScene().getEngine().getInputElement() as HTMLElement | null;
+    if (!this._inputElement) {
+      return;
+    }
+
+    this._onPointerDown = (event: PointerEvent): void => {
+      if (!this._inputEnabled || event.button !== 0) {
+        return;
+      }
+
+      this._isMouseLookActive = true;
+      this._lastMouseClientX = event.clientX;
+      this._lastMouseClientY = event.clientY;
+
+      if (this._inputElement?.setPointerCapture) {
+        try {
+          this._inputElement.setPointerCapture(event.pointerId);
+        } catch {
+          // Ignore capture failures; rotation still works without capture.
+        }
+      }
+    };
+
+    this._onPointerUp = (_event: PointerEvent): void => {
+      this._isMouseLookActive = false;
+      this._lastMouseClientX = null;
+      this._lastMouseClientY = null;
+    };
+
+    this._onPointerMove = (event: PointerEvent): void => {
+      if (!this._inputEnabled || !this._isMouseLookActive) {
+        return;
+      }
+
+      const deltaX = event.movementX !== 0 || event.movementY !== 0
+        ? event.movementX
+        : (this._lastMouseClientX !== null ? event.clientX - this._lastMouseClientX : 0);
+      const deltaY = event.movementX !== 0 || event.movementY !== 0
+        ? event.movementY
+        : (this._lastMouseClientY !== null ? event.clientY - this._lastMouseClientY : 0);
+
+      this._mouseYawInput += deltaX * Player.MOUSE_YAW_SENSITIVITY;
+      this._mousePitchInput += -deltaY * Player.MOUSE_PITCH_SENSITIVITY;
+      this._lastMouseClientX = event.clientX;
+      this._lastMouseClientY = event.clientY;
+    };
+
+    this._inputElement.addEventListener("pointerdown", this._onPointerDown);
+    this._inputElement.addEventListener("pointerup", this._onPointerUp);
+    this._inputElement.addEventListener("pointercancel", this._onPointerUp);
+    this._inputElement.addEventListener("lostpointercapture", this._onPointerUp);
+    this._inputElement.addEventListener("pointermove", this._onPointerMove);
   }
 
   /**
    * Updates player movement based on input and physics.
    */
   private _updateMovement(deltaSeconds: number): void {
-    // Handle rotation
-    const turnInput = Number(this._inputState.rotateLeft) - Number(this._inputState.rotateRight);
-    this._yawRadians += turnInput * this._config.turnSpeedRadians * deltaSeconds;
-
-    const keyboardPitchInput = Number(this._inputState.pitchUp) - Number(this._inputState.pitchDown);
-    this._pitchRadians += keyboardPitchInput * Player.KEYBOARD_PITCH_SPEED_RADIANS * deltaSeconds;
+    // Mouse look defines ship heading.
+    this._yawRadians += this._mouseYawInput;
     this._pitchRadians += this._mousePitchInput;
     this._pitchRadians = Math.max(-Player.MAX_PITCH_RADIANS, Math.min(Player.MAX_PITCH_RADIANS, this._pitchRadians));
+    this._mouseYawInput = 0;
     this._mousePitchInput = 0;
 
-    // Handle thrust
-    if (this._inputState.thrustForward) {
+    // Thrust moves along current look direction.
+    const thrustInput = Number(this._inputState.thrustForward) - Number(this._inputState.thrustBackward);
+    if (thrustInput !== 0) {
       const forward = this._computeForwardDirection();
-      this._velocity.addInPlace(forward.scale(this._config.thrustAcceleration * deltaSeconds));
-    }
-
-    const verticalInput = Number(this._inputState.thrustUp) - Number(this._inputState.thrustDown);
-    if (verticalInput !== 0) {
-      this._velocity.y += verticalInput * this._config.thrustAcceleration * deltaSeconds;
+      this._velocity.addInPlace(forward.scale(this._config.thrustAcceleration * deltaSeconds * thrustInput));
     }
 
     // Apply drag and clamp speed
@@ -646,12 +711,8 @@ export class Player {
    * Computes normalized forward direction from current yaw and pitch.
    */
   private _computeForwardDirection(): Vector3 {
-    const cosPitch = Math.cos(this._pitchRadians);
-    return new Vector3(
-      Math.sin(this._yawRadians) * cosPitch,
-      Math.sin(this._pitchRadians),
-      Math.cos(this._yawRadians) * cosPitch
-    );
+    // The mesh nose is local +Y before rotation; use it directly to avoid model-axis drift.
+    return this._mesh.getDirection(Vector3.Up()).normalize();
   }
 
   /**

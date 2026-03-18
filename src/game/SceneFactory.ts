@@ -50,6 +50,78 @@ function createSkybox(scene: Scene): void {
   skybox.material = material;
 }
 
+function createBackdropStars(scene: Scene): void {
+  const starPrototype = MeshBuilder.CreateSphere("space-star-prototype", { diameter: 1, segments: 2 }, scene);
+  const starMaterial = new StandardMaterial("space-star-material", scene);
+
+  starMaterial.disableLighting = true;
+  starMaterial.diffuseColor = Color3.Black();
+  starMaterial.specularColor = Color3.Black();
+  starMaterial.emissiveColor = new Color3(0.9, 0.95, 1.0);
+
+  starPrototype.material = starMaterial;
+  starPrototype.isPickable = false;
+
+  const STAR_COUNT = 420;
+  for (let i = 0; i < STAR_COUNT; i++) {
+    const star = starPrototype.createInstance(`space-star-${i}`);
+    const radius = 260 + Math.random() * 520;
+    const azimuth = Math.random() * Math.PI * 2;
+    const elevation = (Math.random() - 0.5) * Math.PI;
+
+    star.position = new Vector3(
+      Math.cos(azimuth) * Math.cos(elevation) * radius,
+      Math.sin(elevation) * radius * 0.7,
+      Math.sin(azimuth) * Math.cos(elevation) * radius
+    );
+
+    const scale = 0.15 + Math.random() * 1.35;
+    star.scaling = new Vector3(scale, scale, scale);
+    star.isPickable = false;
+  }
+
+  starPrototype.setEnabled(false);
+}
+
+function createBackdropPlanets(scene: Scene): void {
+  const planetSpecs = [
+    {
+      name: "distant-planet-azure",
+      diameter: 110,
+      position: new Vector3(0, 135, -380),
+      diffuse: new Color3(0.2, 0.4, 0.75),
+      emissive: new Color3(0.1, 0.2, 0.45),
+    },
+    {
+      name: "distant-planet-crimson",
+      diameter: 46,
+      position: new Vector3(-310, 60, -220),
+      diffuse: new Color3(0.48, 0.22, 0.19),
+      emissive: new Color3(0.25, 0.08, 0.06),
+    },
+    {
+      name: "distant-planet-teal",
+      diameter: 34,
+      position: new Vector3(300, -10, -260),
+      diffuse: new Color3(0.18, 0.45, 0.42),
+      emissive: new Color3(0.06, 0.18, 0.17),
+    },
+  ] as const;
+
+  for (const spec of planetSpecs) {
+    const planet = MeshBuilder.CreateSphere(spec.name, { diameter: spec.diameter, segments: 24 }, scene);
+    const material = new StandardMaterial(`${spec.name}-material`, scene);
+
+    material.diffuseColor = spec.diffuse;
+    material.emissiveColor = spec.emissive;
+    material.specularColor = Color3.Black();
+
+    planet.position = spec.position;
+    planet.material = material;
+    planet.isPickable = false;
+  }
+}
+
 function createLighting(scene: Scene): void {
   const hemiConfig = APP_CONFIG.scene.lights.hemispheric;
   const hemisphericLight = new HemisphericLight(
@@ -101,6 +173,8 @@ export function createSceneBootstrap(engine: Engine): SceneBootstrap {
   scene.clearColor = new Color4(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 
   createSkybox(scene);
+  createBackdropStars(scene);
+  createBackdropPlanets(scene);
   createLighting(scene);
 
   const cameraTarget = createCameraTarget(scene);
