@@ -122,6 +122,42 @@ function createBackdropPlanets(scene: Scene): void {
   }
 }
 
+function createNebulaGlow(scene: Scene): void {
+  const nebulaSpecs = [
+    {
+      name: "nebula-magenta",
+      radius: 280,
+      position: new Vector3(-260, 80, -520),
+      emissive: new Color3(0.55, 0.18, 0.58),
+      alpha: 0.18,
+    },
+    {
+      name: "nebula-cyan",
+      radius: 240,
+      position: new Vector3(250, -30, -480),
+      emissive: new Color3(0.14, 0.46, 0.62),
+      alpha: 0.16,
+    },
+  ] as const;
+
+  for (const spec of nebulaSpecs) {
+    const nebula = MeshBuilder.CreateDisc(spec.name, { radius: spec.radius, tessellation: 64 }, scene);
+    const material = new StandardMaterial(`${spec.name}-material`, scene);
+
+    material.disableLighting = true;
+    material.diffuseColor = Color3.Black();
+    material.specularColor = Color3.Black();
+    material.emissiveColor = spec.emissive;
+    material.alpha = spec.alpha;
+    material.backFaceCulling = false;
+
+    nebula.position = spec.position;
+    nebula.rotation.y = Math.PI;
+    nebula.isPickable = false;
+    nebula.material = material;
+  }
+}
+
 function createLighting(scene: Scene): void {
   const hemiConfig = APP_CONFIG.scene.lights.hemispheric;
   const hemisphericLight = new HemisphericLight(
@@ -174,6 +210,7 @@ export function createSceneBootstrap(engine: Engine): SceneBootstrap {
 
   createSkybox(scene);
   createBackdropStars(scene);
+  createNebulaGlow(scene);
   createBackdropPlanets(scene);
   createLighting(scene);
 

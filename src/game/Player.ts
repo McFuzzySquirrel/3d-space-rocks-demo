@@ -42,7 +42,9 @@ export interface PlayerController {
   readonly mesh: Mesh;
   readonly collisionRadius: number;
   readonly isThrusting: boolean;
+  readonly activeProjectiles: ReadonlyArray<Projectile>;
   update: (deltaSeconds: number) => void;
+  takeDamage: (amount?: number) => void;
   getState: () => PlayerState;
   setState: (state: PlayerState) => void;
   setInputEnabled: (enabled: boolean) => void;
@@ -505,6 +507,65 @@ export class Player {
     thrusterMaterial.emissiveColor = new Color3(0.1, 0.32, 0.75);
     thruster.material = thrusterMaterial;
 
+    const cockpit = MeshBuilder.CreateSphere(
+      "player-ship-cockpit",
+      { diameter: 1.05, segments: 16 },
+      scene
+    );
+    cockpit.parent = ship;
+    cockpit.position.y = 0.28;
+    cockpit.position.z = 0.55;
+    const cockpitMaterial = new StandardMaterial("player-ship-cockpit-material", scene);
+    cockpitMaterial.diffuseColor = new Color3(0.28, 0.45, 0.72);
+    cockpitMaterial.emissiveColor = new Color3(0.1, 0.22, 0.4);
+    cockpit.material = cockpitMaterial;
+
+    const wingMaterial = new StandardMaterial("player-ship-wing-material", scene);
+    wingMaterial.diffuseColor = new Color3(0.86, 0.2, 0.2);
+    wingMaterial.emissiveColor = new Color3(0.22, 0.08, 0.08);
+
+    const leftWing = MeshBuilder.CreateBox(
+      "player-ship-wing-left",
+      { width: 0.45, height: 1.55, depth: 2.2 },
+      scene
+    );
+    leftWing.parent = ship;
+    leftWing.position.x = -1.25;
+    leftWing.position.y = -0.25;
+    leftWing.position.z = -0.2;
+    leftWing.rotation.z = Math.PI / 18;
+    leftWing.material = wingMaterial;
+
+    const rightWing = MeshBuilder.CreateBox(
+      "player-ship-wing-right",
+      { width: 0.45, height: 1.55, depth: 2.2 },
+      scene
+    );
+    rightWing.parent = ship;
+    rightWing.position.x = 1.25;
+    rightWing.position.y = -0.25;
+    rightWing.position.z = -0.2;
+    rightWing.rotation.z = -Math.PI / 18;
+    rightWing.material = wingMaterial;
+
+    const nose = MeshBuilder.CreateCylinder(
+      "player-ship-nose",
+      {
+        height: 0.95,
+        diameterTop: 0.08,
+        diameterBottom: 0.55,
+        tessellation: 16,
+      },
+      scene
+    );
+    nose.parent = ship;
+    nose.position.z = 2.05;
+    nose.rotation.x = -Math.PI / 2;
+    const noseMaterial = new StandardMaterial("player-ship-nose-material", scene);
+    noseMaterial.diffuseColor = new Color3(0.94, 0.84, 0.3);
+    noseMaterial.emissiveColor = new Color3(0.2, 0.14, 0.03);
+    nose.material = noseMaterial;
+
     return ship;
   }
 
@@ -581,7 +642,7 @@ export class Player {
         : (this._lastMouseClientY !== null ? event.clientY - this._lastMouseClientY : 0);
 
       this._mouseYawInput += deltaX * Player.MOUSE_YAW_SENSITIVITY;
-      this._mousePitchInput += -deltaY * Player.MOUSE_PITCH_SENSITIVITY;
+      this._mousePitchInput += deltaY * Player.MOUSE_PITCH_SENSITIVITY;
       this._lastMouseClientX = event.clientX;
       this._lastMouseClientY = event.clientY;
     };
@@ -655,7 +716,7 @@ export class Player {
         : (this._lastMouseClientY !== null ? event.clientY - this._lastMouseClientY : 0);
 
       this._mouseYawInput += deltaX * Player.MOUSE_YAW_SENSITIVITY;
-      this._mousePitchInput += -deltaY * Player.MOUSE_PITCH_SENSITIVITY;
+      this._mousePitchInput += deltaY * Player.MOUSE_PITCH_SENSITIVITY;
       this._lastMouseClientX = event.clientX;
       this._lastMouseClientY = event.clientY;
     };
@@ -745,7 +806,11 @@ export function createPlayerController(scene: Scene, config: PlayerConfig) {
     get isThrusting() {
       return player.isThrusting;
     },
+    get activeProjectiles() {
+      return player.activeProjectiles;
+    },
     update: (deltaSeconds: number) => player.update(deltaSeconds),
+    takeDamage: (amount?: number) => player.takeDamage(amount),
     getState: () => player.getState(),
     setState: (state: PlayerState) => player.setState(state),
     setInputEnabled: (enabled: boolean) => player.setInputEnabled(enabled),

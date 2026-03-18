@@ -86,6 +86,39 @@ function createProjectileMaterial(scene: Scene): StandardMaterial {
  * @param scene The Babylon scene
  * @returns A Mesh representing the asteroid (not yet added to gameplay system)
  */
+/** Shape variant builders for asteroid geometry variety. */
+const ASTEROID_SHAPE_COUNT = 6;
+
+function buildAsteroidBaseShape(size: "Large" | "Medium" | "Small", baseRadius: number, subdivisions: number, scene: Scene): Mesh {
+  const variant = Math.floor(Math.random() * ASTEROID_SHAPE_COUNT);
+  const name = `asteroid_${size}`;
+
+  switch (variant) {
+    case 0: // Icosphere — smooth round rock
+      return MeshBuilder.CreateIcoSphere(name, { radius: baseRadius, subdivisions }, scene);
+
+    case 1: // Box — cubic/boxy chunk
+      return MeshBuilder.CreateBox(name, { size: baseRadius * 1.5 }, scene);
+
+    case 2: // Tetrahedron — sharp angular shard
+      return MeshBuilder.CreatePolyhedron(name, { type: 0, size: baseRadius }, scene);
+
+    case 3: // Octahedron — diamond-like
+      return MeshBuilder.CreatePolyhedron(name, { type: 1, size: baseRadius }, scene);
+
+    case 4: // Dodecahedron — faceted near-sphere
+      return MeshBuilder.CreatePolyhedron(name, { type: 2, size: baseRadius * 0.9 }, scene);
+
+    case 5: // Low-poly prism — crystal / irregular column
+    default:
+      return MeshBuilder.CreateCylinder(name, {
+        height: baseRadius * 1.4,
+        diameter: baseRadius * 1.8,
+        tessellation: 5 + Math.floor(Math.random() * 3)
+      }, scene);
+  }
+}
+
 export function createAsteroidMesh(
   size: "Large" | "Medium" | "Small",
   scene: Scene
@@ -94,48 +127,37 @@ export function createAsteroidMesh(
   const subdivisions = size === "Large" ? 4 : size === "Medium" ? 3 : 2;
   const baseRadius = size === "Large" ? 2.0 : size === "Medium" ? 1.2 : 0.6;
 
-  // Create icosphere
-  const asteroid = MeshBuilder.CreateIcoSphere(
-    `asteroid_${size}`,
-    { radius: baseRadius, subdivisions },
-    scene
-  );
+  // Pick a random geometric shape for visual variety
+  const asteroid = buildAsteroidBaseShape(size, baseRadius, subdivisions, scene);
 
-  // Apply vertex displacement noise for irregular shape
+  // Apply vertex displacement noise for irregular, battle-worn surface
   const positions = asteroid.getVerticesData("position");
   const normals = asteroid.getVerticesData("normal");
 
   if (positions && normals) {
     const updatedPositions = new Float32Array(positions);
+    const displace = baseRadius * 0.12;
 
-    // Process each vertex
     for (let i = 0; i < positions.length; i += 3) {
       const x = positions[i];
       const y = positions[i + 1];
       const z = positions[i + 2];
 
-      // Generate noise-based displacement
-      // Use multiple octaves for more natural variation
-      const noise1 = simplexNoise(x, y, z) * 0.15;
-      const noise2 = simplexNoise(x * 2, y * 2, z * 2) * 0.08;
-      const noise3 = simplexNoise(x * 4, y * 4, z * 4) * 0.04;
+      const noise1 = simplexNoise(x, y, z) * displace;
+      const noise2 = simplexNoise(x * 2, y * 2, z * 2) * (displace * 0.5);
+      const noise3 = simplexNoise(x * 4, y * 4, z * 4) * (displace * 0.25);
       const totalNoise = noise1 + noise2 + noise3;
 
-      // Get normal at this vertex for displacement direction
       const nx = normals[i];
       const ny = normals[i + 1];
       const nz = normals[i + 2];
 
-      // Displace vertex along its normal
-      updatedPositions[i] = x + nx * totalNoise;
+      updatedPositions[i]     = x + nx * totalNoise;
       updatedPositions[i + 1] = y + ny * totalNoise;
       updatedPositions[i + 2] = z + nz * totalNoise;
     }
 
-    // Update vertex data with new positions
     asteroid.updateVerticesData("position", updatedPositions, true);
-
-    // Recalculate normals to account for deformed geometry
     asteroid.createNormals(true);
   }
 

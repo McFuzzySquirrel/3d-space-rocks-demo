@@ -69,7 +69,6 @@ const FRONT_BARRIER_FADE_FRAMES = 30;
 
 const COMPLETE_BARRIER_COLOR = new Color3(0, 1, 0);
 const DEFAULT_BARRIER_COLOR = Color3.FromHexString("#FF4500");
-const DEFAULT_BARRIER_ALPHA = 0.62;
 
 const arenaExitZoneOpened$ = new Observable<{ position: Vector3 }>();
 const arenaExitZoneEntered$ = new Observable<void>();
@@ -472,7 +471,7 @@ export function createArenaController(scene: Scene, config: ArenaConfig): ArenaC
     },
     closeExitZone: (): void => {
       scene.stopAnimation(frontWallMaterial);
-      frontWallMaterial.alpha = DEFAULT_BARRIER_ALPHA;
+      frontWallMaterial.alpha = config.wallAlpha;
       exitZoneOpen = false;
       exitZoneTriggered = false;
       disposeExitIndicator();

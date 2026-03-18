@@ -3,6 +3,7 @@ import {
   AdvancedDynamicTexture,
   Container,
   Control,
+  Image,
   Rectangle,
   StackPanel,
   TextBlock,
@@ -479,6 +480,13 @@ export class HUD {
     stack.isVertical = true;
     stack.spacing = 14;
 
+    const titleImage = new Image("menu-title-image", "/title-screen.png");
+    titleImage.width = "780px";
+    titleImage.height = "300px";
+    titleImage.stretch = Image.STRETCH_UNIFORM;
+    titleImage.paddingBottom = "8px";
+    titleImage.alpha = 0.95;
+
     const title = this.makeText("menu-title", "3D SPACE ROCKS", "64px", HUD_THEME.textPrimary, "center");
     title.fontWeight = "800";
     title.shadowBlur = 22;
@@ -493,6 +501,7 @@ export class HUD {
     const highScore = this.makeText("menu-high-score", "HIGH SCORE: 000000", "24px", HUD_THEME.textPrimary, "center");
     highScore.paddingTop = "12px";
 
+    stack.addControl(titleImage);
     stack.addControl(title);
     stack.addControl(subtitle);
     stack.addControl(prompt);

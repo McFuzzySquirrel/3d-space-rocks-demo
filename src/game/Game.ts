@@ -274,6 +274,9 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
             }
           }
 
+          this.resolvePlayerAsteroidHits();
+          this.resolveProjectileAsteroidHits();
+
           this.pruneDestroyedAsteroids();
         } else if (this._state === GameState.AREA_COMPLETE) {
           this.updateAreaComplete(stepSeconds);
@@ -587,6 +590,69 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
       if (this._transitionTimer !== null) {
         clearTimeout(this._transitionTimer);
         this._transitionTimer = null;
+      }
+    }
+
+    private resolveProjectileAsteroidHits(): void {
+      const projectiles = this._player.activeProjectiles;
+      const HIT_TOLERANCE = 0.5;
+
+      for (const projectile of projectiles) {
+        if (!projectile.isAlive || projectile.mesh.isDisposed()) {
+          continue;
+        }
+
+        const projectilePos = projectile.mesh.position;
+        const projectileRadius = projectile.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+
+        for (const asteroid of this._asteroids) {
+          if (asteroid.isDestroyed || asteroid.mesh.isDisposed()) {
+            continue;
+          }
+
+          const asteroidPos = asteroid.mesh.position;
+          const asteroidRadius = asteroid.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+          const hitDistance = projectileRadius + asteroidRadius + HIT_TOLERANCE;
+
+          if (Vector3.DistanceSquared(projectilePos, asteroidPos) > hitDistance * hitDistance) {
+            continue;
+          }
+
+          const hitDirection = asteroidPos.subtract(projectilePos);
+          createProjectileHitEffect(
+            this._scene,
+            projectilePos.clone(),
+            hitDirection.lengthSquared() > 0.0001 ? hitDirection.normalize() : new Vector3(0, 1, 0)
+          );
+
+          asteroid.takeDamage(asteroid.health);
+          projectile.destroy();
+          break;
+        }
+      }
+    }
+
+    private resolvePlayerAsteroidHits(): void {
+      const playerPos = this._player.mesh.position;
+      const playerRadius = this._player.collisionRadius;
+      const HIT_TOLERANCE = 0.5;
+
+      for (const asteroid of this._asteroids) {
+        if (asteroid.isDestroyed || asteroid.mesh.isDisposed()) {
+          continue;
+        }
+
+        const asteroidPos = asteroid.mesh.position;
+        const asteroidRadius = asteroid.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        const hitDistance = playerRadius + asteroidRadius + HIT_TOLERANCE;
+
+        if (Vector3.DistanceSquared(playerPos, asteroidPos) > hitDistance * hitDistance) {
+          continue;
+        }
+
+        this._player.takeDamage(1);
+        asteroid.destroy();
+        break;
       }
     }
 
