@@ -2,6 +2,7 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 import { createSceneBootstrap } from "./game/SceneFactory";
 import { createGameRuntime } from "./game/Game";
 import { HUD } from "./game/HUD";
+import { registerServiceWorker } from "./pwa/registerServiceWorker";
 import { APP_CONFIG } from "./utils/Constants";
 
 const canvasElement = document.getElementById(APP_CONFIG.render.canvasId);
@@ -9,6 +10,8 @@ const canvasElement = document.getElementById(APP_CONFIG.render.canvasId);
 if (!(canvasElement instanceof HTMLCanvasElement)) {
   throw new Error(`Missing canvas element: ${APP_CONFIG.render.canvasId}`);
 }
+
+registerServiceWorker();
 
 const engine = new Engine(
   canvasElement,
