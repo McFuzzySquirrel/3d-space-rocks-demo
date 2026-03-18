@@ -1,6 +1,7 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { createSceneBootstrap } from "./game/SceneFactory";
 import { createGameRuntime } from "./game/Game";
+import { HUD } from "./game/HUD";
 import { APP_CONFIG } from "./utils/Constants";
 
 const canvasElement = document.getElementById(APP_CONFIG.render.canvasId);
@@ -18,6 +19,7 @@ const engine = new Engine(
 
 const sceneBootstrap = createSceneBootstrap(engine);
 const gameRuntime = createGameRuntime(sceneBootstrap);
+const hud = new HUD(sceneBootstrap.scene);
 
 engine.runRenderLoop(() => {
   gameRuntime.update(engine.getDeltaTime());
@@ -29,6 +31,7 @@ window.addEventListener("resize", () => {
 });
 
 window.addEventListener("beforeunload", () => {
+  hud.dispose();
   gameRuntime.dispose();
   sceneBootstrap.dispose();
   engine.dispose();

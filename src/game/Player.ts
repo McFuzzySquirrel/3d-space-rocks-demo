@@ -42,6 +42,9 @@ export interface PlayerController {
   update: (deltaSeconds: number) => void;
   getState: () => PlayerState;
   setState: (state: PlayerState) => void;
+  setInputEnabled: (enabled: boolean) => void;
+  reset: (position?: Vector3, preserveLives?: boolean) => void;
+  getLives: () => number;
   dispose: () => void;
 }
 
@@ -105,6 +108,7 @@ export class Player {
     rotateLeft: false,
     rotateRight: false
   };
+  private _inputEnabled: boolean = true;
 
   // Combat state
   private _lives: number;
@@ -190,6 +194,50 @@ export class Player {
     this._position.copyFrom(state.position);
     this._velocity.copyFrom(state.velocity);
     this._yawRadians = state.yawRadians;
+
+    this._mesh.position.copyFrom(this._position);
+    this._mesh.rotation.y = this._yawRadians;
+  }
+
+  /**
+   * Enables or disables keyboard input processing.
+   * When disabled, movement/fire intent is cleared immediately.
+   */
+  public setInputEnabled(enabled: boolean): void {
+    this._inputEnabled = enabled;
+
+    if (!enabled) {
+      this._inputState.thrustForward = false;
+      this._inputState.rotateLeft = false;
+      this._inputState.rotateRight = false;
+    }
+  }
+
+  /**
+   * Resets movement/combat state for new game or area transitions.
+   */
+  public reset(position?: Vector3, preserveLives: boolean = false): void {
+    const spawn = position ?? new Vector3(
+      this._config.spawnPosition.x,
+      this._config.spawnPosition.y,
+      this._config.spawnPosition.z
+    );
+
+    this._position.copyFrom(spawn);
+    this._velocity.set(0, 0, 0);
+    this._yawRadians = 0;
+
+    if (!preserveLives) {
+      this._lives = PLAYER_COMBAT_CONFIG.maxLives;
+    }
+    this._isInvulnerable = false;
+    this._invulnerabilityTimeRemaining = 0;
+    this._fireReadyTime = 0;
+
+    for (const projectile of this._activeProjectiles) {
+      projectile.dispose();
+    }
+    this._activeProjectiles = [];
 
     this._mesh.position.copyFrom(this._position);
     this._mesh.rotation.y = this._yawRadians;
@@ -392,6 +440,10 @@ export class Player {
    */
   private _registerInputHandlers(): void {
     this._onKeyDown = (event: KeyboardEvent): void => {
+      if (!this._inputEnabled) {
+        return;
+      }
+
       switch (event.code) {
         case "KeyW":
         case "ArrowUp":
@@ -415,6 +467,10 @@ export class Player {
     };
 
     this._onKeyUp = (event: KeyboardEvent): void => {
+      if (!this._inputEnabled) {
+        return;
+      }
+
       switch (event.code) {
         case "KeyW":
         case "ArrowUp":
@@ -503,6 +559,9 @@ export function createPlayerController(scene: Scene, config: PlayerConfig) {
     update: (deltaSeconds: number) => player.update(deltaSeconds),
     getState: () => player.getState(),
     setState: (state: PlayerState) => player.setState(state),
+    setInputEnabled: (enabled: boolean) => player.setInputEnabled(enabled),
+    reset: (position?: Vector3, preserveLives?: boolean) => player.reset(position, preserveLives),
+    getLives: () => player.lives,
     dispose: () => player.dispose()
   };
 }

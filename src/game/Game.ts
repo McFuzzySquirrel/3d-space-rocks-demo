@@ -1,17 +1,68 @@
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Observable, ParticleSystem, Vector3 } from "@babylonjs/core";
 import type { CannonJSPlugin, Scene } from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
 
 import type { SceneBootstrap } from "./SceneFactory";
 import { createPlayerController, playerEvents } from "./Player";
-import { createArenaController } from "./Arena";
-import { Asteroid, asteroidEvents, type AsteroidConfig, AsteroidSize } from "./Asteroid";
+import { arenaEvents, createArenaController } from "./Arena";
+import { Asteroid, asteroidEvents, type AsteroidConfig } from "./Asteroid";
 import { projectileEvents } from "./Projectile";
-import { APP_CONFIG } from "../utils/Constants";
+import { WaveManager, waveManagerEvents } from "./WaveManager";
+import { APP_CONFIG, STATE_MACHINE_CONFIG } from "../utils/Constants";
 import { createAsteroidExplosion, createProjectileHitEffect } from "../vfx/ParticleEffects";
 import { applyPlayerDamageFlash, playImpactShake } from "../vfx/DamageFeedback";
+import {
+  playAreaCompleteCelebration,
+  playExitZoneBeacon,
+  playWaveCompletePulse,
+} from "../vfx/BarrierFeedback";
 import { initPhysicsWorld } from "../systems/PhysicsSetup";
 import { initCollisionSystem } from "../systems/CollisionSystem";
 import { ScoreSystem } from "./ScoreSystem";
+
+export enum GameState {
+  LOADING = "LOADING",
+  MENU = "MENU",
+  PLAYING = "PLAYING",
+  WAVE_TRANSITION = "WAVE_TRANSITION",
+  AREA_COMPLETE = "AREA_COMPLETE",
+  AREA_TRANSITION = "AREA_TRANSITION",
+  PAUSED = "PAUSED",
+  GAME_OVER = "GAME_OVER",
+  VICTORY = "VICTORY",
+}
+
+const stateChanged$ = new Observable<{ from: GameState; to: GameState }>();
+const waveTransitionStart$ = new Observable<{ wave: number; area: number }>();
+const areaCompleteStart$ = new Observable<{ area: number }>();
+const gameOverStart$ = new Observable<{ finalScore: number }>();
+const victoryStart$ = new Observable<{ finalScore: number }>();
+
+export const gameStateEvents = {
+  stateChanged$,
+  waveTransitionStart$,
+  areaCompleteStart$,
+  gameOverStart$,
+  victoryStart$,
+};
+
+const STATE_TRANSITIONS: Record<GameState, readonly GameState[]> = {
+  [GameState.LOADING]: [GameState.MENU],
+  [GameState.MENU]: [GameState.PLAYING],
+  [GameState.PLAYING]: [
+    GameState.WAVE_TRANSITION,
+    GameState.AREA_COMPLETE,
+    GameState.PAUSED,
+    GameState.GAME_OVER,
+    GameState.VICTORY,
+  ],
+  [GameState.WAVE_TRANSITION]: [GameState.PLAYING],
+  [GameState.AREA_COMPLETE]: [GameState.AREA_TRANSITION],
+  [GameState.AREA_TRANSITION]: [GameState.PLAYING],
+  [GameState.PAUSED]: [GameState.PLAYING],
+  [GameState.GAME_OVER]: [GameState.MENU],
+  [GameState.VICTORY]: [GameState.MENU],
+};
 
 /**
  * Game runtime interface for frame-by-frame updates and cleanup.
@@ -25,6 +76,8 @@ export interface GameRuntime {
  * Extended game interface that also exposes asteroid spawning for Phase 3 WaveManager.
  */
 export interface GameController extends GameRuntime {
+  readonly state: GameState;
+  setState: (next: GameState) => void;
   spawnAsteroid: (config: AsteroidConfig) => Asteroid;
   spawnAsteroids: (configs: AsteroidConfig[]) => Asteroid[];
 }
@@ -61,217 +114,486 @@ function syncCameraTarget(sceneBootstrap: SceneBootstrap, position: Vector3, yaw
 export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameController {
   const scene: Scene = sceneBootstrap.scene;
 
-  // ============================================================================
-  // Initialize Physics World and Collision System
-  // ============================================================================
-  const physicsPlugin: CannonJSPlugin = initPhysicsWorld(scene);
-  initCollisionSystem();
+  class RuntimeController implements GameController {
+    private readonly _scene: Scene;
+    private readonly _physicsPlugin: CannonJSPlugin;
+    private readonly _player = createPlayerController(scene, APP_CONFIG.gameplay.player);
+    private readonly _arena = createArenaController(scene, APP_CONFIG.gameplay.arena);
+    private readonly _scoreSystem = new ScoreSystem();
+    private readonly _waveManager: WaveManager;
 
-  // ============================================================================
-  // Create Core Entities (Player and Arena)
-  // ============================================================================
-  const player = createPlayerController(scene, APP_CONFIG.gameplay.player);
-  const arena = createArenaController(scene, APP_CONFIG.gameplay.arena);
+    private readonly _asteroids: Asteroid[] = [];
+    private readonly _subscriptions: Array<() => void> = [];
 
-  sceneBootstrap.registerSceneActor({ key: "player", node: player.mesh });
+    private _asteroidSerial: number = 0;
+    private _accumulatorMs: number = 0;
+    private _elapsedSeconds: number = 0;
+    private _transitionTimer: ReturnType<typeof setTimeout> | null = null;
+    private _exitZoneBeacon: ParticleSystem | null = null;
+    private _disposed: boolean = false;
 
-  for (const wall of arena.walls) {
-    sceneBootstrap.registerSceneActor({ key: wall.name, node: wall });
-  }
+    private _state: GameState = GameState.LOADING;
+    private _previousState: GameState = GameState.LOADING;
 
-  player.setState({
-    ...player.getState(),
-    position: new Vector3(
-      APP_CONFIG.gameplay.player.spawnPosition.x,
-      APP_CONFIG.gameplay.player.spawnPosition.y,
-      APP_CONFIG.gameplay.player.spawnPosition.z
-    )
-  });
+    private _pendingWaveTransition: { wave: number; area: number } | null = null;
+    private _pendingAreaComplete: { area: number } | null = null;
+    private _pendingFinalScore: number = 0;
 
-  // ============================================================================
-  // Initialize Score System
-  // ============================================================================
-  const scoreSystem = new ScoreSystem();
-
-  // ============================================================================
-  // Asteroid Management
-  // ============================================================================
-  const asteroids: Asteroid[] = [];
-
-  /**
-   * Spawns a single asteroid and adds it to the tracking array.
-   * Called by WaveManager during wave initialization.
-   *
-   * @param config The asteroid configuration (size, position, velocity)
-   * @returns The created Asteroid instance
-   */
-  function spawnAsteroid(config: AsteroidConfig): Asteroid {
-    const asteroid = new Asteroid(config, scene);
-    asteroids.push(asteroid);
-    sceneBootstrap.registerSceneActor({ key: `asteroid-${asteroids.length}`, node: asteroid.mesh });
-    return asteroid;
-  }
-
-  /**
-   * Spawns multiple asteroids in bulk.
-   * Convenience method for wave spawning.
-   *
-   * @param configs Array of asteroid configurations
-   * @returns Array of created Asteroid instances
-   */
-  function spawnAsteroids(configs: AsteroidConfig[]): Asteroid[] {
-    return configs.map(config => spawnAsteroid(config));
-  }
-
-  // ============================================================================
-  // Event Subscriptions for VFX, Scoring, and State Management
-  // ============================================================================
-
-  // Subscribe to asteroid destruction for VFX
-  asteroidEvents.destroyed$.add((event) => {
-    createAsteroidExplosion(sceneBootstrap.scene, event.position, event.size);
-  });
-
-  // Subscribe to asteroid children spawning (from splitting)
-  // When an asteroid splits, add the children to the tracking array
-  asteroidEvents.childrenSpawned$.add((event) => {
-    for (const child of event.children) {
-      asteroids.push(child);
-      sceneBootstrap.registerSceneActor({ key: `asteroid-child-${asteroids.length}`, node: child.mesh });
+    public get state(): GameState {
+      return this._state;
     }
-  });
 
-  // Subscribe to player damage for VFX
-  playerEvents.damaged$.add((event) => {
-    applyPlayerDamageFlash(player.mesh, APP_CONFIG.gameplay.playerCombat.invulnerabilityDuration);
-    playImpactShake(sceneBootstrap.camera, 1.0, 0.1);
-  });
+    constructor(private readonly _sceneBootstrap: SceneBootstrap) {
+      this._scene = _sceneBootstrap.scene;
+      this._physicsPlugin = initPhysicsWorld(this._scene);
+      initCollisionSystem();
 
-  // Subscribe to player death (Phase 3 will handle state transition to GAME_OVER)
-  playerEvents.died$.add(() => {
-    // Phase 3: Transition game state to GAME_OVER
-  });
-
-  // Subscribe to projectile destruction for VFX
-  projectileEvents.destroyed$.add((event) => {
-    if (event.asteroidHit) {
-      createProjectileHitEffect(sceneBootstrap.scene, event.position, event.position.subtract(event.position.scale(2)));
-    }
-  });
-
-  // ============================================================================
-  // Main Game Loop
-  // ============================================================================
-  let accumulatorMs = 0;
-  const fixedStepMs = APP_CONFIG.gameplay.fixedStepMs;
-  const stepSeconds = fixedStepMs / 1000;
-
-  const controller: GameController = {
-    /**
-     * Main update function called once per frame.
-     * Accumulates delta time and executes a fixed timestep loop.
-     *
-     * Physics stepping occurs automatically through Babylon.js scene rendering.
-     * Entity updates are sequenced AFTER physics resolution to ensure collision-aware motion.
-     *
-     * @param deltaMs Time elapsed since last frame in milliseconds
-     */
-    update: (deltaMs: number): void => {
-      const clampedDeltaMs = Math.min(deltaMs, 100);
-      accumulatorMs += clampedDeltaMs;
-
-      while (accumulatorMs >= fixedStepMs) {
-        // ====================================================================
-        // Update Player
-        // ====================================================================
-        // Physics stepping is handled automatically by the Babylon.js engine
-        // during the main render loop via scene.enablePhysics(). The physics world
-        // resolves collisions and updates impostor velocities before this game update runs.
-        player.update(stepSeconds);
-        arena.containPlayer(player);
-
-        // ====================================================================
-        // Update All Asteroids
-        // ====================================================================
-        // Asteroid.update() handles:
-        // - Rotation animation
-        // - Mesh position sync from physics impostor velocity updates
-        // - TTL/destruction checks (not currently used, but extensible)
-        for (const asteroid of asteroids) {
-          if (!asteroid.isDestroyed) {
-            asteroid.update(stepSeconds);
-          }
-        }
-
-        // ====================================================================
-        // Remove Destroyed Asteroids from Tracking Array
-        // ====================================================================
-        // This triggers the asteroid's dispose() method, which unsubscribes from events
-        // and cleans up mesh and physics impostor resources.
-        let writeIdx = 0;
-        for (let i = 0; i < asteroids.length; i++) {
-          if (!asteroids[i].isDestroyed) {
-            asteroids[writeIdx++] = asteroids[i];
-          } else {
-            asteroids[i].dispose();
-          }
-        }
-        asteroids.length = writeIdx;
-
-        // ====================================================================
-        // Synchronize Camera Target to Player Position
-        // ====================================================================
-        const playerState = player.getState();
-        syncCameraTarget(sceneBootstrap, playerState.position, playerState.yawRadians);
-
-        accumulatorMs -= fixedStepMs;
+      _sceneBootstrap.registerSceneActor({ key: "player", node: this._player.mesh });
+      for (const wall of this._arena.walls) {
+        _sceneBootstrap.registerSceneActor({ key: wall.name, node: wall });
       }
-    },
 
-    /**
-     * Disposes all game resources and unsubscribes from events.
-     * Called when the game is shutting down or transitioning states.
-     */
-    dispose: (): void => {
-      // Dispose all asteroids
-      for (const asteroid of asteroids) {
+      this._waveManager = new WaveManager(
+        {
+          totalAreas: 3,
+          wavesPerArea: 3,
+          arenaHalfSize: new Vector3(
+            APP_CONFIG.gameplay.arena.width / 2,
+            APP_CONFIG.gameplay.arena.height / 2,
+            APP_CONFIG.gameplay.arena.depth / 2
+          ),
+          playerSpawnPosition: new Vector3(0, 0, 0),
+        },
+        this._scene,
+        (config) => this.spawnAsteroid(config)
+      );
+
+      this._registerEventSubscriptions();
+      this._registerInputHandlers();
+
+      this.setState(GameState.MENU);
+    }
+
+    public setState(next: GameState): void {
+      if (this._disposed || this._state === next) {
+        return;
+      }
+
+      const allowed = STATE_TRANSITIONS[this._state];
+      if (!allowed.includes(next)) {
+        console.warn(`Invalid game state transition: ${this._state} -> ${next}`);
+        return;
+      }
+
+      const from = this._state;
+      this._previousState = from;
+      this._state = next;
+      gameStateEvents.stateChanged$.notifyObservers({ from, to: next });
+
+      switch (next) {
+        case GameState.MENU:
+          this.enterMenu();
+          break;
+        case GameState.PLAYING:
+          this.enterPlaying();
+          break;
+        case GameState.WAVE_TRANSITION:
+          this.enterWaveTransition(this._pendingWaveTransition?.wave ?? 0, this._pendingWaveTransition?.area ?? 0);
+          break;
+        case GameState.AREA_COMPLETE:
+          this.enterAreaComplete(this._pendingAreaComplete?.area ?? this._waveManager.currentArea - 1);
+          break;
+        case GameState.AREA_TRANSITION:
+          this.enterAreaTransition();
+          break;
+        case GameState.PAUSED:
+          this.enterPaused();
+          break;
+        case GameState.GAME_OVER:
+          this.enterGameOver(this._pendingFinalScore);
+          break;
+        case GameState.VICTORY:
+          this.enterVictory(this._pendingFinalScore);
+          break;
+        case GameState.LOADING:
+          break;
+      }
+    }
+
+    public spawnAsteroid(config: AsteroidConfig): Asteroid {
+      const asteroid = new Asteroid(config, this._scene);
+      this._asteroids.push(asteroid);
+      this._asteroidSerial += 1;
+      this._sceneBootstrap.registerSceneActor({ key: `asteroid-${this._asteroidSerial}`, node: asteroid.mesh });
+      return asteroid;
+    }
+
+    public spawnAsteroids(configs: AsteroidConfig[]): Asteroid[] {
+      return configs.map((config) => this.spawnAsteroid(config));
+    }
+
+    public update(deltaMs: number): void {
+      if (this._disposed) {
+        return;
+      }
+
+      const clampedDeltaMs = Math.min(deltaMs, 100);
+      this._accumulatorMs += clampedDeltaMs;
+
+      const fixedStepMs = APP_CONFIG.gameplay.fixedStepMs;
+      const stepSeconds = fixedStepMs / 1000;
+
+      if (this._state !== GameState.PLAYING && this._state !== GameState.AREA_COMPLETE) {
+        const playerState = this._player.getState();
+        syncCameraTarget(this._sceneBootstrap, playerState.position, playerState.yawRadians);
+        return;
+      }
+
+      while (this._accumulatorMs >= fixedStepMs) {
+        this._elapsedSeconds += stepSeconds;
+
+        if (this._state === GameState.PLAYING) {
+          this._player.update(stepSeconds);
+          const containedState = this._arena.containState(
+            this._player.getState(),
+            this._player.collisionRadius
+          );
+          this._player.setState(containedState);
+          this._arena.update(this._elapsedSeconds, containedState.position, this._player.collisionRadius);
+
+          for (const asteroid of this._asteroids) {
+            if (!asteroid.isDestroyed) {
+              asteroid.update(stepSeconds);
+            }
+          }
+
+          this.pruneDestroyedAsteroids();
+        } else if (this._state === GameState.AREA_COMPLETE) {
+          this.updateAreaComplete(stepSeconds);
+        }
+
+        const playerState = this._player.getState();
+        syncCameraTarget(this._sceneBootstrap, playerState.position, playerState.yawRadians);
+
+        this._accumulatorMs -= fixedStepMs;
+      }
+    }
+
+    public dispose(): void {
+      if (this._disposed) {
+        return;
+      }
+      this._disposed = true;
+
+      if (this._transitionTimer !== null) {
+        clearTimeout(this._transitionTimer);
+        this._transitionTimer = null;
+      }
+
+      for (const unsubscribe of this._subscriptions) {
+        unsubscribe();
+      }
+      this._subscriptions.length = 0;
+
+      this.clearAsteroids();
+      this._waveManager.dispose();
+      this._player.dispose();
+      this._arena.dispose();
+      this._scoreSystem.dispose();
+      this.disposeExitZoneBeacon();
+
+      this._physicsPlugin.dispose();
+    }
+
+    private registerObserver<T>(observable: Observable<T>, observer: Observer<T>): void {
+      this._subscriptions.push(() => observable.remove(observer));
+    }
+
+    private _registerEventSubscriptions(): void {
+      const asteroidDestroyed = asteroidEvents.destroyed$.add((event) => {
+        createAsteroidExplosion(this._scene, event.position, event.size);
+      });
+      this.registerObserver(asteroidEvents.destroyed$, asteroidDestroyed);
+
+      const asteroidChildren = asteroidEvents.childrenSpawned$.add((event) => {
+        for (const child of event.children) {
+          this._asteroids.push(child);
+          this._asteroidSerial += 1;
+          this._sceneBootstrap.registerSceneActor({ key: `asteroid-child-${this._asteroidSerial}`, node: child.mesh });
+        }
+      });
+      this.registerObserver(asteroidEvents.childrenSpawned$, asteroidChildren);
+
+      const playerDamaged = playerEvents.damaged$.add(() => {
+        applyPlayerDamageFlash(this._player.mesh, APP_CONFIG.gameplay.playerCombat.invulnerabilityDuration);
+        playImpactShake(this._sceneBootstrap.camera, 1.0, 0.1);
+      });
+      this.registerObserver(playerEvents.damaged$, playerDamaged);
+
+      const playerDied = playerEvents.died$.add(() => {
+        if (this._state !== GameState.PLAYING) {
+          return;
+        }
+        this._pendingFinalScore = this._scoreSystem.currentScore;
+        this.setState(GameState.GAME_OVER);
+      });
+      this.registerObserver(playerEvents.died$, playerDied);
+
+      const projectileDestroyed = projectileEvents.destroyed$.add((event) => {
+        if (event.asteroidHit) {
+          createProjectileHitEffect(this._scene, event.position, new Vector3(0, 1, 0));
+        }
+      });
+      this.registerObserver(projectileEvents.destroyed$, projectileDestroyed);
+
+      const waveComplete = waveManagerEvents.waveComplete$.add((event) => {
+        playWaveCompletePulse(this._scene, Vector3.Zero());
+
+        if (this._state !== GameState.PLAYING) {
+          return;
+        }
+        this._pendingWaveTransition = event;
+        this.setState(GameState.WAVE_TRANSITION);
+      });
+      this.registerObserver(waveManagerEvents.waveComplete$, waveComplete);
+
+      const areaComplete = waveManagerEvents.areaComplete$.add((event) => {
+        playAreaCompleteCelebration(
+          this._scene,
+          Vector3.Zero(),
+          new Vector3(
+            APP_CONFIG.gameplay.arena.width / 2,
+            APP_CONFIG.gameplay.arena.height / 2,
+            APP_CONFIG.gameplay.arena.depth / 2
+          )
+        );
+
+        if (this._state !== GameState.PLAYING) {
+          return;
+        }
+        this._pendingAreaComplete = event;
+        this.setState(GameState.AREA_COMPLETE);
+      });
+      this.registerObserver(waveManagerEvents.areaComplete$, areaComplete);
+
+      const gameComplete = waveManagerEvents.gameComplete$.add(() => {
+        if (this._state !== GameState.PLAYING) {
+          return;
+        }
+        this._pendingFinalScore = this._scoreSystem.currentScore;
+        this.setState(GameState.VICTORY);
+      });
+      this.registerObserver(waveManagerEvents.gameComplete$, gameComplete);
+
+      const exitZoneEnter = this._arena.onExitZoneEnter$.add(() => {
+        if (this._state === GameState.AREA_COMPLETE) {
+          this.setState(GameState.AREA_TRANSITION);
+        }
+      });
+      this.registerObserver(this._arena.onExitZoneEnter$, exitZoneEnter);
+
+      const exitZoneOpened = arenaEvents.exitZoneOpened$.add((event) => {
+        this.disposeExitZoneBeacon();
+        this._exitZoneBeacon = playExitZoneBeacon(this._scene, event.position);
+      });
+      this.registerObserver(arenaEvents.exitZoneOpened$, exitZoneOpened);
+
+      const exitZoneEntered = arenaEvents.exitZoneEntered$.add(() => {
+        this.disposeExitZoneBeacon();
+      });
+      this.registerObserver(arenaEvents.exitZoneEntered$, exitZoneEntered);
+    }
+
+    private _registerInputHandlers(): void {
+      const onKeyDown = (event: KeyboardEvent): void => {
+        if (event.repeat) {
+          return;
+        }
+
+        if (event.code === "Enter") {
+          if (this._state === GameState.MENU) {
+            this.setState(GameState.PLAYING);
+          } else if (this._state === GameState.GAME_OVER || this._state === GameState.VICTORY) {
+            this.setState(GameState.MENU);
+          }
+          return;
+        }
+
+        if (event.code === "Escape") {
+          if (this._state === GameState.PLAYING) {
+            this.setState(GameState.PAUSED);
+          } else if (this._state === GameState.PAUSED) {
+            this.setState(GameState.PLAYING);
+          }
+        }
+      };
+
+      window.addEventListener("keydown", onKeyDown);
+      this._subscriptions.push(() => window.removeEventListener("keydown", onKeyDown));
+    }
+
+    private enterMenu(): void {
+      this.clearTransitionTimer();
+      this._elapsedSeconds = 0;
+      this._player.setInputEnabled(false);
+
+      this.clearAsteroids();
+      this._waveManager.reset();
+      this._arena.resetBarriers();
+      this._arena.closeExitZone();
+      this.disposeExitZoneBeacon();
+      this._player.reset(new Vector3(0, 0, 0));
+
+      this._pendingWaveTransition = null;
+      this._pendingAreaComplete = null;
+      this._pendingFinalScore = 0;
+    }
+
+    private enterPlaying(): void {
+      const from = this._previousState;
+
+      if (from === GameState.MENU) {
+        this.clearAsteroids();
+        this._scoreSystem.reset();
+        this._waveManager.reset();
+        this._arena.resetBarriers();
+        this._arena.closeExitZone();
+        this._player.reset(new Vector3(0, 0, 0));
+        this._waveManager.startWave();
+      }
+
+      if (from === GameState.WAVE_TRANSITION || from === GameState.AREA_TRANSITION) {
+        if (!this._waveManager.isWaveActive && !this._waveManager.isAreaComplete && !this._waveManager.isGameComplete) {
+          this._waveManager.startWave();
+        }
+      }
+
+      this.clearTransitionTimer();
+      this._player.setInputEnabled(true);
+      this._pendingWaveTransition = null;
+      this._pendingAreaComplete = null;
+    }
+
+    private enterWaveTransition(waveNum: number, areaNum: number): void {
+      this._player.setInputEnabled(false);
+
+      gameStateEvents.waveTransitionStart$.notifyObservers({ wave: waveNum, area: areaNum });
+
+      this.clearTransitionTimer();
+      this._transitionTimer = setTimeout(() => {
+        this._transitionTimer = null;
+        if (this._state === GameState.WAVE_TRANSITION) {
+          this.setState(GameState.PLAYING);
+        }
+      }, STATE_MACHINE_CONFIG.waveTransitionDelayMs);
+    }
+
+    private enterAreaComplete(areaNum: number): void {
+      this._player.setInputEnabled(false);
+      this._arena.transitionToComplete();
+      gameStateEvents.areaCompleteStart$.notifyObservers({ area: areaNum });
+    }
+
+    private updateAreaComplete(deltaSeconds: number): void {
+      const state = this._player.getState();
+      const target = new Vector3(
+        0,
+        0,
+        this._arena.bounds.maxZ - this._player.collisionRadius
+      );
+
+      const toTarget = target.subtract(state.position);
+      const distance = toTarget.length();
+      const maxStep = APP_CONFIG.gameplay.player.maxSpeed * 0.75 * deltaSeconds;
+
+      if (distance > 0.0001) {
+        const move = toTarget.normalize().scale(Math.min(distance, maxStep));
+        this._player.setState({
+          position: state.position.add(move),
+          velocity: Vector3.Zero(),
+          yawRadians: state.yawRadians,
+        });
+      }
+
+      const containedState = this._arena.containState(this._player.getState(), this._player.collisionRadius);
+      this._player.setState(containedState);
+      this._arena.update(this._elapsedSeconds, containedState.position, this._player.collisionRadius);
+    }
+
+    private enterAreaTransition(): void {
+      this._player.setInputEnabled(false);
+      this._arena.closeExitZone();
+      this.disposeExitZoneBeacon();
+      this.clearAsteroids();
+      this.clearTransitionTimer();
+
+      // Fade hook point for Scene/VFX systems; timing stays in config for deterministic flow.
+      this._transitionTimer = setTimeout(() => {
+        this._transitionTimer = null;
+        this._arena.resetBarriers();
+        this._player.reset(new Vector3(0, 0, 0), true);
+
+        if (this._state === GameState.AREA_TRANSITION) {
+          this.setState(GameState.PLAYING);
+        }
+      }, STATE_MACHINE_CONFIG.areaTransitionFadeMs);
+    }
+
+    private enterPaused(): void {
+      this._player.setInputEnabled(false);
+    }
+
+    private enterGameOver(finalScore: number): void {
+      this._player.setInputEnabled(false);
+      gameStateEvents.gameOverStart$.notifyObservers({ finalScore });
+    }
+
+    private enterVictory(finalScore: number): void {
+      this._player.setInputEnabled(false);
+      gameStateEvents.victoryStart$.notifyObservers({ finalScore });
+    }
+
+    private clearAsteroids(): void {
+      for (const asteroid of this._asteroids) {
         if (!asteroid.isDestroyed) {
           asteroid.dispose();
         }
       }
-      asteroids.length = 0;
+      this._asteroids.length = 0;
+    }
 
-      // Dispose core entities
-      player.dispose();
-      arena.dispose();
-
-      // Dispose score system (unsubscribes from events)
-      scoreSystem.dispose();
-
-      // Dispose physics world (Cannon.js cleanup)
-      if (physicsPlugin) {
-        physicsPlugin.dispose();
+    private pruneDestroyedAsteroids(): void {
+      let writeIdx = 0;
+      for (let i = 0; i < this._asteroids.length; i++) {
+        if (!this._asteroids[i].isDestroyed) {
+          this._asteroids[writeIdx++] = this._asteroids[i];
+        } else {
+          this._asteroids[i].dispose();
+        }
       }
-    },
+      this._asteroids.length = writeIdx;
+    }
 
-    /**
-     * Spawns a single asteroid and adds it to the tracking array.
-     * Called by WaveManager during wave initialization.
-     *
-     * @param config The asteroid configuration (size, position, velocity)
-     * @returns The created Asteroid instance
-     */
-    spawnAsteroid,
+    private clearTransitionTimer(): void {
+      if (this._transitionTimer !== null) {
+        clearTimeout(this._transitionTimer);
+        this._transitionTimer = null;
+      }
+    }
 
-    /**
-     * Spawns multiple asteroids in bulk.
-     * Convenience method for wave spawning.
-     *
-     * @param configs Array of asteroid configurations
-     * @returns Array of created Asteroid instances
-     */
-    spawnAsteroids
-  };
+    private disposeExitZoneBeacon(): void {
+      if (this._exitZoneBeacon === null) {
+        return;
+      }
 
-  return controller;
+      if (!this._exitZoneBeacon.isDisposed) {
+        this._exitZoneBeacon.stop();
+        this._exitZoneBeacon.dispose();
+      }
+
+      this._exitZoneBeacon = null;
+    }
+  }
+
+  return new RuntimeController(sceneBootstrap);
 }

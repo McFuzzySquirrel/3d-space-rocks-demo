@@ -71,6 +71,19 @@ export interface AssetConfig {
 
 export interface GameplayConfig {
   readonly fixedStepMs: number;
+  readonly stateMachine: {
+    readonly waveTransitionDelayMs: number;
+    readonly areaTransitionFadeMs: number;
+  };
+  readonly waves: {
+    readonly perArea: number;
+    readonly baseAsteroidCounts: readonly number[];
+    readonly baseSpeedMultipliers: readonly number[];
+    readonly areaCountScale: number;
+    readonly areaSpeedScale: number;
+    readonly minSpawnDistFromPlayer: number;
+    readonly waveTransitionDelayMs: number;
+  };
   readonly player: {
     readonly thrustAcceleration: number;
     readonly turnSpeedRadians: number;
@@ -161,6 +174,11 @@ export interface GameplayConfig {
       readonly maxIntensity: number;
       readonly durationMs: number;
     };
+    readonly completion: {
+      readonly areaParticleCount: number;
+      readonly wavePulseParticleCount: number;
+      readonly exitBeaconParticleCount: number;
+    };
   };
 }
 
@@ -240,6 +258,19 @@ export const APP_CONFIG: AppConfig = {
   },
   gameplay: {
     fixedStepMs: 1000 / 60,
+    stateMachine: {
+      waveTransitionDelayMs: 2000,
+      areaTransitionFadeMs: 800,
+    },
+    waves: {
+      perArea: 3,
+      baseAsteroidCounts: [3, 5, 7],
+      baseSpeedMultipliers: [1.0, 1.15, 1.3],
+      areaCountScale: 1.25,
+      areaSpeedScale: 1.1,
+      minSpawnDistFromPlayer: 15,
+      waveTransitionDelayMs: 2000,
+    },
     player: {
       thrustAcceleration: 26,
       turnSpeedRadians: 2.6,
@@ -329,6 +360,11 @@ export const APP_CONFIG: AppConfig = {
       cameraShake: {
         maxIntensity: 0.3,
         durationMs: 100
+      },
+      completion: {
+        areaParticleCount: 60,
+        wavePulseParticleCount: 20,
+        exitBeaconParticleCount: 15
       }
     }
   }
@@ -363,3 +399,14 @@ export const SCORING_CONFIG = APP_CONFIG.gameplay.scoring;
  * This includes explosion parameters, flash timing, and camera shake tuning
  */
 export const VFX_CONFIG = APP_CONFIG.gameplay.vfx;
+
+/**
+ * Wave and difficulty configuration exported for use in WaveManager.ts
+ * Contains wave counts, speed multipliers, area scaling factors, and timing constants
+ */
+export const WAVE_CONFIG = APP_CONFIG.gameplay.waves;
+
+/**
+ * Game state machine timing constants for transition durations.
+ */
+export const STATE_MACHINE_CONFIG = APP_CONFIG.gameplay.stateMachine;
