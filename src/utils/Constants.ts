@@ -100,6 +100,68 @@ export interface GameplayConfig {
       readonly b: number;
     };
   };
+  readonly asteroids: {
+    readonly speedBase: {
+      readonly Large: number;
+      readonly Medium: number;
+      readonly Small: number;
+    };
+    readonly rotationSpeed: {
+      readonly min: number;
+      readonly max: number;
+    };
+    readonly spreadOffset: number;
+    readonly childSpreadSpeed: number;
+  };
+  readonly projectiles: {
+    readonly speed: number;
+    readonly ttl: number;
+  };
+  readonly playerCombat: {
+    readonly maxLives: number;
+    readonly invulnerabilityDuration: number;
+    readonly fireRateCooldown: number;
+    readonly projectileSpawnDistance: number;
+  };
+  readonly scoring: {
+    readonly asteroid: {
+      readonly small: number;
+      readonly medium: number;
+      readonly large: number;
+    };
+    readonly bonuses: {
+      readonly waveMultiplier: number;
+      readonly areaMultiplier: number;
+    };
+  };
+  readonly vfx: {
+    readonly explosions: {
+      readonly particleCountBySize: {
+        readonly Large: number;
+        readonly Medium: number;
+        readonly Small: number;
+      };
+      readonly durationBySize: {
+        readonly Large: number;
+        readonly Medium: number;
+        readonly Small: number;
+      };
+      readonly speedBySize: {
+        readonly Large: number;
+        readonly Medium: number;
+        readonly Small: number;
+      };
+    };
+    readonly damageFlash: {
+      readonly flashIntervalDuration: number;
+      readonly flashIntervalGap: number;
+      readonly invulnerabilityDuration: number;
+    };
+    readonly cameraShake: {
+      readonly maxIntensity: number;
+      readonly durationMs: number;
+    };
+  };
 }
 
 export interface AppConfig {
@@ -206,6 +268,98 @@ export const APP_CONFIG: AppConfig = {
         g: 0.2,
         b: 0.02
       }
+    },
+    asteroids: {
+      speedBase: {
+        Large: 15,
+        Medium: 20,
+        Small: 25
+      },
+      rotationSpeed: {
+        min: 0.5,
+        max: 1.0
+      },
+      spreadOffset: 2.0,
+      childSpreadSpeed: 8.0
+    },
+    projectiles: {
+      speed: 40,
+      ttl: 10
+    },
+    playerCombat: {
+      maxLives: 3,
+      invulnerabilityDuration: 1.5,
+      fireRateCooldown: 0.1,
+      projectileSpawnDistance: 2.0
+    },
+    scoring: {
+      asteroid: {
+        small: 100,
+        medium: 50,
+        large: 25
+      },
+      bonuses: {
+        waveMultiplier: 500,
+        areaMultiplier: 2000
+      }
+    },
+    vfx: {
+      explosions: {
+        particleCountBySize: {
+          Large: 100,
+          Medium: 70,
+          Small: 40
+        },
+        durationBySize: {
+          Large: 1.0,
+          Medium: 0.9,
+          Small: 0.8
+        },
+        speedBySize: {
+          Large: 15,
+          Medium: 12,
+          Small: 10
+        }
+      },
+      damageFlash: {
+        flashIntervalDuration: 0.15,
+        flashIntervalGap: 0.1,
+        invulnerabilityDuration: 1.5
+      },
+      cameraShake: {
+        maxIntensity: 0.3,
+        durationMs: 100
+      }
     }
   }
 };
+
+/**
+ * Asteroid-specific configuration exported for use in Asteroid.ts
+ * This is a convenience export of the nested APP_CONFIG.gameplay.asteroids
+ */
+export const ASTEROID_CONFIG = APP_CONFIG.gameplay.asteroids;
+
+/**
+ * Projectile-specific configuration exported for use in Projectile.ts
+ * This is a convenience export of the nested APP_CONFIG.gameplay.projectiles
+ */
+export const PROJECTILE_CONFIG = APP_CONFIG.gameplay.projectiles;
+
+/**
+ * Player combat configuration exported for use in Player.ts
+ * This includes lives, invulnerability duration, fire rate, and projectile spawn distance
+ */
+export const PLAYER_COMBAT_CONFIG = APP_CONFIG.gameplay.playerCombat;
+
+/**
+ * Scoring configuration exported for use in ScoreSystem.ts
+ * This includes asteroid point values and wave/area bonus multipliers
+ */
+export const SCORING_CONFIG = APP_CONFIG.gameplay.scoring;
+
+/**
+ * VFX configuration exported for use in particle effects and damage feedback modules
+ * This includes explosion parameters, flash timing, and camera shake tuning
+ */
+export const VFX_CONFIG = APP_CONFIG.gameplay.vfx;
