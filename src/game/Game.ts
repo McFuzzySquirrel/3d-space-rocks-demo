@@ -18,6 +18,7 @@ import {
 } from "../vfx/BarrierFeedback";
 import { initPhysicsWorld } from "../systems/PhysicsSetup";
 import { initCollisionSystem } from "../systems/CollisionSystem";
+import { AudioManager } from "../systems/AudioManager";
 import { ScoreSystem } from "./ScoreSystem";
 
 export enum GameState {
@@ -120,6 +121,7 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
     private readonly _player = createPlayerController(scene, APP_CONFIG.gameplay.player);
     private readonly _arena = createArenaController(scene, APP_CONFIG.gameplay.arena);
     private readonly _scoreSystem = new ScoreSystem();
+    private readonly _audioManager: AudioManager;
     private readonly _waveManager: WaveManager;
 
     private readonly _asteroids: Asteroid[] = [];
@@ -167,6 +169,10 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
         this._scene,
         (config) => this.spawnAsteroid(config)
       );
+
+      this._audioManager = new AudioManager(this._scene);
+      this._audioManager.setPlayer(this._player);
+      this._audioManager.init();
 
       this._registerEventSubscriptions();
       this._registerInputHandlers();
@@ -297,6 +303,7 @@ export function createGameRuntime(sceneBootstrap: SceneBootstrap): GameControlle
 
       this.clearAsteroids();
       this._waveManager.dispose();
+      this._audioManager.dispose();
       this._player.dispose();
       this._arena.dispose();
       this._scoreSystem.dispose();

@@ -179,6 +179,14 @@ export interface GameplayConfig {
       readonly wavePulseParticleCount: number;
       readonly exitBeaconParticleCount: number;
     };
+    readonly thruster: {
+      readonly emitRate: number;
+      readonly minLifetime: number;
+      readonly maxLifetime: number;
+      readonly minSize: number;
+      readonly maxSize: number;
+      readonly capacity: number;
+    };
   };
 }
 
@@ -365,6 +373,14 @@ export const APP_CONFIG: AppConfig = {
         areaParticleCount: 60,
         wavePulseParticleCount: 20,
         exitBeaconParticleCount: 15
+      },
+      thruster: {
+        emitRate: 30,
+        minLifetime: 0.2,
+        maxLifetime: 0.4,
+        minSize: 0.1,
+        maxSize: 0.3,
+        capacity: 50
       }
     }
   }

@@ -6,6 +6,7 @@ import type { Scene, Mesh } from "@babylonjs/core";
 import { Projectile, ProjectileType, projectileEvents } from "./Projectile";
 import { collisionEvents, type CollisionEvent } from "../systems/CollisionSystem";
 import { PLAYER_COMBAT_CONFIG, PROJECTILE_CONFIG } from "../utils/Constants";
+import { ThrusterEffect } from "../vfx/ThrusterEffect";
 
 /**
  * Configuration object for player creation.
@@ -39,6 +40,7 @@ export interface PlayerState {
 export interface PlayerController {
   readonly mesh: Mesh;
   readonly collisionRadius: number;
+  readonly isThrusting: boolean;
   update: (deltaSeconds: number) => void;
   getState: () => PlayerState;
   setState: (state: PlayerState) => void;
@@ -124,6 +126,9 @@ export class Player {
   private _onKeyDown: ((event: KeyboardEvent) => void) | null = null;
   private _onKeyUp: ((event: KeyboardEvent) => void) | null = null;
 
+  // VFX
+  private _thrusterEffect!: ThrusterEffect;
+
   public readonly mesh: Mesh;
   public readonly collisionRadius: number;
 
@@ -153,6 +158,9 @@ export class Player {
 
     // Subscribe to asteroid collision events
     this._subscribeToCollisions();
+
+    // Initialize thruster VFX
+    this._thrusterEffect = new ThrusterEffect(scene, this._mesh);
   }
 
   /**
@@ -167,6 +175,14 @@ export class Player {
    */
   public get isInvulnerable(): boolean {
     return this._isInvulnerable;
+  }
+
+  /**
+   * Gets whether the player is currently applying thrust.
+   * Used by audio and external systems.
+   */
+  public get isThrusting(): boolean {
+    return this._inputState.thrustForward;
   }
 
   /**
@@ -346,6 +362,9 @@ export class Player {
     // Update movement
     this._updateMovement(deltaSeconds);
 
+    // Update thruster VFX
+    this._thrusterEffect.update(this._inputState.thrustForward);
+
     // Update all active projectiles and clean up destroyed ones
     for (let i = this._activeProjectiles.length - 1; i >= 0; i--) {
       const projectile = this._activeProjectiles[i];
@@ -385,6 +404,9 @@ export class Player {
     if (this._onKeyUp) {
       window.removeEventListener("keyup", this._onKeyUp);
     }
+
+    // Dispose thruster VFX
+    this._thrusterEffect.dispose();
 
     // Dispose mesh
     if (!this._mesh.isDisposed()) {
@@ -556,6 +578,9 @@ export function createPlayerController(scene: Scene, config: PlayerConfig) {
   return {
     mesh: player.mesh,
     collisionRadius: player.collisionRadius,
+    get isThrusting() {
+      return player.isThrusting;
+    },
     update: (deltaSeconds: number) => player.update(deltaSeconds),
     getState: () => player.getState(),
     setState: (state: PlayerState) => player.setState(state),
