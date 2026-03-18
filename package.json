@@ -1,0 +1,21 @@
+{
+  "name": "3d-space-rocks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "echo \"No tests configured yet\""
+  },
+  "dependencies": {
+    "@babylonjs/core": "8.55.3",
+    "@babylonjs/gui": "8.55.3",
+    "cannon-es": "0.20.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "8.0.0"
+  }
+}

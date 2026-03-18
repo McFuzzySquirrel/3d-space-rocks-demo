@@ -1,1 +1,3 @@
 .ejs.db
+node_modules/
+dist/
