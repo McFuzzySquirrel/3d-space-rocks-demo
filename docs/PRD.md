@@ -18,6 +18,7 @@
 |---------|------|--------|---------|
 | 1.0 | 2025-01-01 | — | Initial PRD created with core game concept, technical architecture, and requirements |
 | 1.1 | 2026-03-13 | — | Added best-practice sections: version history, goals/non-goals, personas, security, accessibility, testing strategy, analytics, dependencies/risks, future considerations |
+| 1.2 | 2026-03-19 | — | Updated controls to mouse-hold-to-rotate scheme; added mouse pitch/yaw; updated asteroid visual requirements to random geometric shapes; updated visual style with transparent barriers, backdrop environment, playful ship design; relaxed Non-Goals mobile note |
 
 ---
 
@@ -205,8 +206,8 @@ Start Game
 | Engine Setup | `new Engine(canvas, true)` |
 | Scene | `new Scene(engine)` |
 | Camera | `new FollowCamera("camera", startPos, scene)` |
-| Ship Mesh | `MeshBuilder.CreateBox` or imported `.glb` model |
-| Asteroids | `MeshBuilder.CreateIcoSphere` with random vertex displacement |
+| Ship Mesh | `MeshBuilder.CreateBox` / `CreateCylinder` / `CreateSphere` composited for cockpit + hull + wings |
+| Asteroids | Random pick from `MeshBuilder.CreateIcoSphere`, `CreateBox`, `CreatePolyhedron` (types 0/1/2), `CreateCylinder` with procedural vertex displacement noise per asteroid |
 | Barriers | `MeshBuilder.CreateBox` (thin wall meshes) with `StandardMaterial` |
 | Barrier Glow | `StandardMaterial.emissiveColor` for color transitions |
 | Physics | `CannonJSPlugin` + `PhysicsImpostor` on all interactive meshes |
@@ -226,9 +227,9 @@ Start Game
 | ID | Requirement | Priority |
 |---|---|---|
 | P-01 | The player controls a spaceship rendered as a 3D mesh | Must |
-| P-02 | Ship movement uses thrust-based forward acceleration (W or Up Arrow) | Must |
-| P-03 | Ship rotates left/right using A/D or Left/Right Arrow keys | Must |
-| P-04 | Ship can pitch up/down for vertical movement in 3D space | Should |
+| P-02 | Ship movement uses thrust-based forward/backward acceleration (W/Up Arrow or hold mouse button to aim then thrust) | Must |
+| P-03 | Ship rotates left/right and pitches up/down using mouse while mouse button is held | Must |
+| P-04 | Releasing the mouse button locks the ship orientation; movement continues until thrust is released | Should |
 | P-05 | Ship fires projectiles forward on Spacebar press | Must |
 | P-06 | Ship has a visible thruster particle effect when accelerating | Should |
 | P-07 | Ship has 3 lives by default | Must |
@@ -240,7 +241,7 @@ Start Game
 
 | ID | Requirement | Priority |
 |---|---|---|
-| A-01 | Asteroids are 3D meshes (icospheres with vertex noise for irregular shapes) | Must |
+| A-01 | Asteroids are 3D meshes rendered as one of several random geometric shapes (icosphere, box, tetrahedron, octahedron, dodecahedron, low-poly prism) with procedural vertex displacement noise applied for a worn, irregular appearance | Must |
 | A-02 | Asteroids come in 3 sizes: Large, Medium, Small | Must |
 | A-03 | Destroying a Large asteroid spawns 2 Medium asteroids | Must |
 | A-04 | Destroying a Medium asteroid spawns 2 Small asteroids | Must |
@@ -262,7 +263,7 @@ Start Game
 | AR-05 | When all 3 waves are cleared, barrier color transitions to green (`#00FF00`) over 1 second | Must |
 | AR-06 | After barriers turn green, an exit zone (a highlighted opening) appears on the front wall (+Z direction) of the arena | Must |
 | AR-07 | The player flying through the exit triggers the transition to the next area | Must |
-| AR-08 | Barriers are opaque enough to be clearly visible but allow the player to see the space environment beyond them faintly | Must |
+| AR-08 | Barriers are very lightly transparent — predominantly see-through — so they feel like faint force fields. The space environment beyond them should be clearly visible. | Must |
 | AR-09 | Barriers have a subtle pulsing glow effect (2-second cycle, emissive intensity varying ±20%) to make them feel active/energized | Should |
 | AR-10 | Arena dimensions may increase slightly in later areas to accommodate more asteroids | Could |
 
@@ -398,28 +399,28 @@ Start Game
 
 ## 12. Controls
 
-| Action | Keyboard | Gamepad (if supported) |
-|---|---|---|
-| Thrust Forward | W / Up Arrow | Left Stick Up / Right Trigger |
-| Rotate Left | A / Left Arrow | Left Stick Left |
-| Rotate Right | D / Right Arrow | Left Stick Right |
-| Pitch Up | Shift + W (or R) | Left Stick Up + Modifier |
-| Pitch Down | Shift + S (or F) | Left Stick Down + Modifier |
-| Fire | Spacebar | A Button |
-| Pause | Escape | Start Button |
+| Action | Keyboard | Mouse | Gamepad (if supported) |
+|---|---|---|---|
+| Thrust Forward | W / Up Arrow | — | Left Stick Up / Right Trigger |
+| Thrust Backward | S / Down Arrow | — | Left Stick Down |
+| Rotate / Pitch | A/D/Arrow keys | Hold left mouse button + move | Left Stick |
+| Invert pitch | — | Mouse Y axis (inverted) | — |
+| Fire | Spacebar | — | A Button |
+| Pause | Escape | — | Start Button |
 
-Gamepad support is a **Could** priority. Keyboard controls are **Must**.
+Gamepad support is a **Could** priority. Keyboard controls are **Must**. Mouse-hold-to-rotate is the primary intended control scheme.
 
 ---
 
-## 13. Visual Style
+### 13. Visual Style
 
-- **Space Environment:** Dark skybox with stars. Optionally a subtle nebula texture.
-- **Ship:** Simple geometric mesh (low-poly wedge/arrow shape) or a loaded `.glb` model. Glowing thruster at the rear.
-- **Asteroids:** Irregular icospheres with a rocky gray-brown texture or procedural vertex coloring. Subtle bump map if performance allows.
-- **Barriers:** Semi-transparent colored walls with emissive glow. Default color: red-orange. Complete color: green. Should feel like energy shields/force fields.
-- **Projectiles:** Small glowing elongated meshes (capsule or cylinder) with emissive material in a bright color (cyan or yellow).
+- **Space Environment:** Dark backdrop with a star field, distant procedural planets, and a subtle nebula glow layer surrounding the arena exterior. These environment elements are visible through the transparent arena barriers.
+- **Ship:** A playful low-poly design with a distinct cockpit dome, swept wings, and a glowing rear thruster. Bright emissive thruster effect when accelerating.
+- **Asteroids:** Randomly selected from 6 geometric base shapes (icosphere, box, tetrahedron, octahedron, dodecahedron, low-poly cylinder/prism). Each has procedural vertex displacement noise applied for a worn, irregular appearance with a rocky gray-brown material. Physics collision shape remains a sphere impostor for consistency.
+- **Barriers:** Very lightly transparent semi-transparent walls — predominantly see-through — giving the feel of a faint force field rather than a solid wall. Subtle pulsing emissive glow. Default color: red-orange. Complete color: green.
+- **Projectiles:** Small glowing elongated meshes (cylinder) with emissive material in a bright color (cyan). Fired along the ship nose axis.
 - **Explosions:** Particle systems with bright flashes fading to orange/red, then dissipating. Particle count kept reasonable for performance.
+- **Start Screen:** Displays the title image (`title-screen.png`) on the main menu overlay.
 
 ---
 
